@@ -1,35 +1,37 @@
 # Authored By Certified Coders © 2026
 # System: Queue Manager (Database Handler)
-# Updated: Python 3.13 Compatible & Optimized Autoclean
+# Optimized for Python 3.13: Modern Type Hints, Suppress & to_thread
 
 import asyncio
-from typing import Union
+from contextlib import suppress
 
 from AnnieXMedia.misc import db
 from AnnieXMedia.utils.formatters import check_duration, seconds_to_min
 from config import autoclean, time_to_seconds
 
+
 async def put_queue(
-    chat_id,
-    original_chat_id,
-    file,
-    title,
-    duration,
-    user,
-    vidid,
-    user_id,
-    stream,
-    forceplay: Union[bool, str] = None,
+    chat_id: int,
+    original_chat_id: int,
+    file: str,
+    title: str,
+    duration: str,
+    user: str,
+    vidid: str,
+    user_id: int,
+    stream: str,
+    forceplay: bool | str | None = None,
 ):
     """
     Standard Queue Insert for YouTube, Telegram Files, etc.
     """
     title = title.title()
-    try:
+    duration_in_seconds = 0
+    
+    # 🚀 بايثون 3.13: استخدام suppress لتجاهل الأخطاء بصمت وبدون استهلاك للذاكرة
+    with suppress(Exception):
         # Calculate duration in seconds for Seek logic later
         duration_in_seconds = time_to_seconds(duration) - 3
-    except:
-        duration_in_seconds = 0
         
     put = {
         "title": title,
@@ -44,15 +46,14 @@ async def put_queue(
         "played": 0,
     }
     
-    # Initialize list if chat_id not in db
-    if chat_id not in db:
-        db[chat_id] = []
+    # 🚀 بايثون 3.13: دالة setdefault أسرع وأنظف من if chat_id not in db
+    chat_queue = db.setdefault(chat_id, [])
         
     if forceplay:
-        db[chat_id].insert(0, put)
+        chat_queue.insert(0, put)
     else:
         # Standard append
-        db[chat_id].append(put)
+        chat_queue.append(put)
         
     # 🔥 تعديل احترافي: عدم إضافة الروابط أو الـ IDs لقائمة التنظيف (Autoclean)
     if isinstance(file, str) and not file.startswith(("http", "vid_", "youtube")):
@@ -61,32 +62,30 @@ async def put_queue(
 
 
 async def put_queue_index(
-    chat_id,
-    original_chat_id,
-    file,
-    title,
-    duration,
-    user,
-    vidid,
-    stream,
-    forceplay: Union[bool, str] = None,
+    chat_id: int,
+    original_chat_id: int,
+    file: str,
+    title: str,
+    duration: str,
+    user: str,
+    vidid: str,
+    stream: str,
+    forceplay: bool | str | None = None,
 ):
     """
     Queue Insert for M3U8 / Live Streams / Index Links
     """
+    dur = 0
     # Specific check for known IP streams or direct URLs
     if "20.212.146.162" in str(vidid):
         try:
-            # 🔥 تحديث بايثون 3.13
-            loop = asyncio.get_running_loop()
-            dur = await loop.run_in_executor(None, check_duration, vidid)
+            # 🚀 بايثون 3.13: استخدام asyncio.to_thread الحديثة والسريعة
+            dur = await asyncio.to_thread(check_duration, vidid)
             duration = seconds_to_min(dur)
-        except:
+        except Exception:
             duration = "ᴜʀʟ sᴛʀᴇᴀᴍ"
             dur = 0
-    else:
-        dur = 0
-        
+            
     put = {
         "title": title,
         "dur": duration,
@@ -99,12 +98,10 @@ async def put_queue_index(
         "played": 0,
     }
     
-    # Initialize list if chat_id not in db
-    if chat_id not in db:
-        db[chat_id] = []
+    # 🚀 تهيئة القائمة بطريقة حديثة ومختصرة
+    chat_queue = db.setdefault(chat_id, [])
         
     if forceplay:
-        db[chat_id].insert(0, put)
+        chat_queue.insert(0, put)
     else:
-        db[chat_id].append(put)
-
+        chat_queue.append(put)
