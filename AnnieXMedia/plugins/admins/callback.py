@@ -1,10 +1,14 @@
 # Authored By Certified Coders © 2026
-# Module: Playback Callback & Control - Fully Compatible with Titan Core
+# Module: Playback Callback & Control
+# Optimized for Python 3.13: Pattern Matching, PEP 604, and Suppress
 
 import asyncio
 import random
+from contextlib import suppress
+
 from pyrogram import filters
 from pyrogram.types import CallbackQuery, InlineKeyboardMarkup
+
 from config import (
     BANNED_USERS,
     lyrical,
@@ -34,11 +38,10 @@ from AnnieXMedia.utils.inline import close_markup, stream_markup, stream_markup_
 from AnnieXMedia.utils.stream.autoclear import auto_clean
 from AnnieXMedia.utils.thumbnails import get_thumb
 
-
 checker = {}
 
-
-def parse_chat_info(chat_info: str):
+# 🚀 بايثون 3.13: كتابة الأنواع الحديثة (Modern Typing) 
+def parse_chat_info(chat_info: str) -> tuple[int, str | None]:
     if "_" in chat_info:
         parts = chat_info.split("_")
         return int(parts[0]), parts[1]
@@ -68,59 +71,63 @@ async def manage_callback(client, callback: CallbackQuery, _):
     data = callback.data.strip().split(None, 1)[1]
     command, chat_info = data.split("|", 1)
     chat_id, counter = parse_chat_info(chat_info)
+    
     if not await is_active_chat(chat_id):
         return await callback.answer(_["general_5"], show_alert=True)
+        
     user_mention = callback.from_user.mention
     
-    if command == "Pause":
-        if not await is_music_playing(chat_id):
-            return await callback.answer(_["admin_1"], show_alert=True)
-        await callback.answer()
-        await music_off(chat_id)
-        await StreamController.pause_stream(chat_id)
-        await callback.message.reply_text(_["admin_2"].format(user_mention), reply_markup=close_markup(_))
+    # 🚀 بايثون 3.13: المطابقة الهيكلية السريعة (Pattern Matching) بدلاً من if/elif
+    match command:
+        case "Pause":
+            if not await is_music_playing(chat_id):
+                return await callback.answer(_["admin_1"], show_alert=True)
+            await callback.answer()
+            await music_off(chat_id)
+            await StreamController.pause_stream(chat_id)
+            await callback.message.reply_text(_["admin_2"].format(user_mention), reply_markup=close_markup(_))
 
-    elif command == "Resume":
-        if await is_music_playing(chat_id):
-            return await callback.answer(_["admin_3"], show_alert=True)
-        await callback.answer()
-        await music_on(chat_id)
-        await StreamController.resume_stream(chat_id)
-        await callback.message.reply_text(_["admin_4"].format(user_mention), reply_markup=close_markup(_))
+        case "Resume":
+            if await is_music_playing(chat_id):
+                return await callback.answer(_["admin_3"], show_alert=True)
+            await callback.answer()
+            await music_on(chat_id)
+            await StreamController.resume_stream(chat_id)
+            await callback.message.reply_text(_["admin_4"].format(user_mention), reply_markup=close_markup(_))
 
-    elif command in ["Stop", "End"]:
-        await callback.answer()
-        await StreamController.stop_stream(chat_id)
-        await set_loop(chat_id, 0)
-        await callback.message.reply_text(_["admin_5"].format(user_mention), reply_markup=close_markup(_))
-        await callback.message.delete()
+        case "Stop" | "End": # دمج الأوامر المتشابهة بسهولة!
+            await callback.answer()
+            await StreamController.stop_stream(chat_id)
+            await set_loop(chat_id, 0)
+            await callback.message.reply_text(_["admin_5"].format(user_mention), reply_markup=close_markup(_))
+            await callback.message.delete()
 
-    elif command == "Loop":
-        await callback.answer()
-        await set_loop(chat_id, 3)
-        await callback.message.reply_text(_["admin_41"].format(user_mention, 3))
+        case "Loop":
+            await callback.answer()
+            await set_loop(chat_id, 3)
+            await callback.message.reply_text(_["admin_41"].format(user_mention, 3))
 
-    elif command == "Shuffle":
-        playlist = db.get(chat_id)
-        if not playlist:
-            return await callback.answer(_["admin_42"], show_alert=True)
-        try:
-            popped = playlist.pop(0)
-        except Exception:
-            return await callback.answer(_["admin_43"], show_alert=True)
-        if not playlist:
+        case "Shuffle":
+            playlist = db.get(chat_id)
+            if not playlist:
+                return await callback.answer(_["admin_42"], show_alert=True)
+            try:
+                popped = playlist.pop(0)
+            except Exception:
+                return await callback.answer(_["admin_43"], show_alert=True)
+            if not playlist:
+                playlist.insert(0, popped)
+                return await callback.answer(_["admin_43"], show_alert=True)
+            await callback.answer()
+            random.shuffle(playlist)
             playlist.insert(0, popped)
-            return await callback.answer(_["admin_43"], show_alert=True)
-        await callback.answer()
-        random.shuffle(playlist)
-        playlist.insert(0, popped)
-        await callback.message.reply_text(_["admin_44"].format(user_mention))
+            await callback.message.reply_text(_["admin_44"].format(user_mention))
 
-    elif command in ["Skip", "Replay"]:
-        await handle_skip_replay(callback, _, chat_id, command, user_mention)
+        case "Skip" | "Replay":
+            await handle_skip_replay(callback, _, chat_id, command, user_mention)
 
-    else:
-        await handle_seek(callback, _, chat_id, command, user_mention)
+        case _: # (Default fallback) لأي أمر آخر مثل التقديم والتأخير (Seek)
+            await handle_seek(callback, _, chat_id, command, user_mention)
 
 
 async def handle_skip_replay(callback: CallbackQuery, _, chat_id: int, command: str, user_mention: str):
@@ -173,95 +180,50 @@ async def handle_skip_replay(callback: CallbackQuery, _, chat_id: int, command: 
         db[chat_id][0]["speed_path"] = None
         db[chat_id][0]["speed"] = 1.0
 
-    # 🔥 التصحيح 1: Live Stream (حذفنا image)
-    if "live_" in queued:
-        n, new_link = await YouTube.video(videoid, True)
-        if n == 0:
-            return await callback.message.reply_text(_["admin_7"].format(title), reply_markup=close_markup(_))
-        
-        try:
-            await StreamController.skip_stream(chat_id, new_link, video=status)
-        except Exception:
-            return await callback.message.reply_text(_["call_6"])
+    # 🚀 بايثون 3.13: المطابقة الهيكلية مع الشروط (Pattern Matching with Guards)
+    match queued:
+        case _ if "live_" in queued:
+            n, new_link = await YouTube.video(videoid, True)
+            if n == 0:
+                return await callback.message.reply_text(_["admin_7"].format(title), reply_markup=close_markup(_))
             
-        buttons = stream_markup(_, chat_id)
-        img = await get_thumb(videoid)
-        run = await callback.message.reply_photo(
-            photo=img,
-            caption=_["stream_1"].format(f"https://t.me/{app.username}?start=info_{videoid}", title[:23], duration, user),
-            reply_markup=InlineKeyboardMarkup(buttons)
-        )
-        db[chat_id][0]["mystic"] = run
-        db[chat_id][0]["markup"] = "tg"
-        await callback.edit_message_text(text_msg, reply_markup=close_markup(_))
-
-    # 🔥 التصحيح 2: Video/Audio File (حذفنا image)
-    elif "vid_" in queued:
-        mystic = await callback.message.reply_text(_["call_7"], disable_web_page_preview=True)
-        try:
-            file_path, direct = await YouTube.download(videoid, mystic, videoid=True, video=status)
-        except Exception:
-            return await mystic.edit_text(_["call_6"])
-        
-        try:
-            await StreamController.skip_stream(chat_id, file_path, video=status)
-        except Exception:
-            return await mystic.edit_text(_["call_6"])
-            
-        buttons = stream_markup(_, chat_id)
-        img = await get_thumb(videoid)
-        run = await callback.message.reply_photo(
-            photo=img,
-            caption=_["stream_1"].format(f"https://t.me/{app.username}?start=info_{videoid}", title[:23], duration, user),
-            reply_markup=InlineKeyboardMarkup(buttons)
-        )
-        db[chat_id][0]["mystic"] = run
-        db[chat_id][0]["markup"] = "stream"
-        await callback.edit_message_text(text_msg, reply_markup=close_markup(_))
-        await mystic.delete()
-
-    # 🔥 التصحيح 3: Index/M3U8 (حذفنا image)
-    elif "index_" in queued:
-        try:
-            await StreamController.skip_stream(chat_id, videoid, video=status)
-        except Exception:
-            return await callback.message.reply_text(_["call_6"])
-        buttons = stream_markup(_, chat_id)
-        run = await callback.message.reply_photo(
-            photo=STREAM_IMG_URL,
-            caption=_["stream_2"].format(user),
-            reply_markup=InlineKeyboardMarkup(buttons)
-        )
-        db[chat_id][0]["mystic"] = run
-        db[chat_id][0]["markup"] = "tg"
-        await callback.edit_message_text(text_msg, reply_markup=close_markup(_))
-
-    # 🔥 التصحيح 4: General/Telegram (حذفنا image)
-    else:
-        try:
-            await StreamController.skip_stream(chat_id, queued, video=status)
-        except Exception:
-            return await callback.message.reply_text(_["call_6"])
-            
-        if videoid == "telegram":
+            try:
+                await StreamController.skip_stream(chat_id, new_link, video=status)
+            except Exception:
+                return await callback.message.reply_text(_["call_6"])
+                
             buttons = stream_markup(_, chat_id)
+            img = await get_thumb(videoid)
             run = await callback.message.reply_photo(
-                photo=(TELEGRAM_AUDIO_URL if str(streamtype) == "audio" else TELEGRAM_VIDEO_URL),
-                caption=_["stream_1"].format(SUPPORT_CHAT, title[:23], duration, user),
+                photo=img,
+                caption=_["stream_1"].format(f"https://t.me/{app.username}?start=info_{videoid}", title[:23], duration, user),
                 reply_markup=InlineKeyboardMarkup(buttons)
             )
             db[chat_id][0]["mystic"] = run
             db[chat_id][0]["markup"] = "tg"
-        elif videoid == "soundcloud":
-            buttons = stream_markup(_, chat_id)
-            run = await callback.message.reply_photo(
-                photo=(SOUNCLOUD_IMG_URL if str(streamtype) == "audio" else TELEGRAM_VIDEO_URL),
-                caption=_["stream_1"].format(SUPPORT_CHAT, title[:23], duration, user),
-                reply_markup=InlineKeyboardMarkup(buttons)
-            )
-            db[chat_id][0]["mystic"] = run
-            db[chat_id][0]["markup"] = "tg"
-        else:
+            await callback.edit_message_text(text_msg, reply_markup=close_markup(_))
+
+        # 🔥 الحل الجذري للكراش + نظام 3.13 
+        case _ if "vid_" in queued:
+            mystic = await callback.message.reply_text(_["call_7"], disable_web_page_preview=True)
+            try:
+                # 1. بناء الرابط كاملاً
+                full_url = f"https://www.youtube.com/watch?v={videoid}"
+                # 2. استلام قيمة واحدة (المسار) بدون Unpacking error
+                file_path = await YouTube.download(full_url, mystic, video=status)
+            except Exception as e:
+                print(f"Callback Download Error: {e}")
+                return await mystic.edit_text(_["call_6"])
+            
+            if not file_path:
+                return await mystic.edit_text(_["call_6"])
+                
+            try:
+                await StreamController.skip_stream(chat_id, file_path, video=status)
+            except Exception as e:
+                print(f"Callback Skip Stream Error: {e}")
+                return await mystic.edit_text(_["call_6"])
+                
             buttons = stream_markup(_, chat_id)
             img = await get_thumb(videoid)
             run = await callback.message.reply_photo(
@@ -271,7 +233,59 @@ async def handle_skip_replay(callback: CallbackQuery, _, chat_id: int, command: 
             )
             db[chat_id][0]["mystic"] = run
             db[chat_id][0]["markup"] = "stream"
-        await callback.edit_message_text(text_msg, reply_markup=close_markup(_))
+            await callback.edit_message_text(text_msg, reply_markup=close_markup(_))
+            await mystic.delete()
+
+        case _ if "index_" in queued:
+            try:
+                await StreamController.skip_stream(chat_id, videoid, video=status)
+            except Exception:
+                return await callback.message.reply_text(_["call_6"])
+            buttons = stream_markup(_, chat_id)
+            run = await callback.message.reply_photo(
+                photo=STREAM_IMG_URL,
+                caption=_["stream_2"].format(user),
+                reply_markup=InlineKeyboardMarkup(buttons)
+            )
+            db[chat_id][0]["mystic"] = run
+            db[chat_id][0]["markup"] = "tg"
+            await callback.edit_message_text(text_msg, reply_markup=close_markup(_))
+
+        case _:
+            try:
+                await StreamController.skip_stream(chat_id, queued, video=status)
+            except Exception:
+                return await callback.message.reply_text(_["call_6"])
+                
+            if videoid == "telegram":
+                buttons = stream_markup(_, chat_id)
+                run = await callback.message.reply_photo(
+                    photo=(TELEGRAM_AUDIO_URL if str(streamtype) == "audio" else TELEGRAM_VIDEO_URL),
+                    caption=_["stream_1"].format(SUPPORT_CHAT, title[:23], duration, user),
+                    reply_markup=InlineKeyboardMarkup(buttons)
+                )
+                db[chat_id][0]["mystic"] = run
+                db[chat_id][0]["markup"] = "tg"
+            elif videoid == "soundcloud":
+                buttons = stream_markup(_, chat_id)
+                run = await callback.message.reply_photo(
+                    photo=(SOUNCLOUD_IMG_URL if str(streamtype) == "audio" else TELEGRAM_VIDEO_URL),
+                    caption=_["stream_1"].format(SUPPORT_CHAT, title[:23], duration, user),
+                    reply_markup=InlineKeyboardMarkup(buttons)
+                )
+                db[chat_id][0]["mystic"] = run
+                db[chat_id][0]["markup"] = "tg"
+            else:
+                buttons = stream_markup(_, chat_id)
+                img = await get_thumb(videoid)
+                run = await callback.message.reply_photo(
+                    photo=img,
+                    caption=_["stream_1"].format(f"https://t.me/{app.username}?start=info_{videoid}", title[:23], duration, user),
+                    reply_markup=InlineKeyboardMarkup(buttons)
+                )
+                db[chat_id][0]["mystic"] = run
+                db[chat_id][0]["markup"] = "stream"
+            await callback.edit_message_text(text_msg, reply_markup=close_markup(_))
 
 
 async def handle_seek(callback: CallbackQuery, _, chat_id: int, command: str, user_mention: str):
@@ -310,7 +324,6 @@ async def handle_seek(callback: CallbackQuery, _, chat_id: int, command: str, us
         if n == 0:
             return await mystic.edit_text(_["admin_22"])
     
-    # 🔥 تحديث Seek: إضافة Mode (video/audio)
     try:
         streamtype = playing[0]["streamtype"]
         mode = "video" if streamtype == "video" else "audio"
@@ -352,12 +365,14 @@ async def markup_timer():
                 if chat_id in checker and mystic.id in checker[chat_id]:
                     if checker[chat_id][mystic.id] is False:
                         continue
-                try:
-                    language = await get_lang(chat_id)
-                    _lang = get_string(language)
-                except Exception:
+                
+                # 🚀 بايثون 3.13: تحديد اللغة بشكل أنظف مع توفير معالجة Exception
+                language = await get_lang(chat_id) if hasattr(get_lang, "__call__") else "ar"
+                _lang = get_string(language) if get_string else None
+                if not _lang:
                     _lang = get_string("ar")
-                try:
+                    
+                with suppress(Exception):
                     buttons = stream_markup_timer(
                         _lang,
                         chat_id,
@@ -365,25 +380,21 @@ async def markup_timer():
                         playing[0]["dur"],
                     )
                     await mystic.edit_reply_markup(reply_markup=InlineKeyboardMarkup(buttons))
-                except Exception:
-                    continue
             except Exception:
                 continue
 
 
 asyncio.create_task(markup_timer())
 
-
 @app.on_callback_query(filters.regex("close") & ~BANNED_USERS)
 async def close_menu(_, query: CallbackQuery):
-    try:
+    # بايثون 3.13: استخدام Suppress للتعامل الصامت والأسرع مع الأخطاء (بدلًا من try/except)
+    with suppress(Exception):
         await query.answer()
         await query.message.delete()
         msg = await query.message.reply_text(f"تم الاغلاق بواسطة : {query.from_user.mention}")
         await asyncio.sleep(2)
         await msg.delete()
-    except:
-        pass
 
 
 @app.on_callback_query(filters.regex("stop_downloading") & ~BANNED_USERS)
@@ -399,5 +410,5 @@ async def stop_download(_, query: CallbackQuery, _lang):
         lyrical.pop(query.message.id, None)
         await query.answer(_lang["tg_6"], show_alert=True)
         return await query.edit_message_text(_lang["tg_7"].format(query.from_user.mention))
-    except:
+    except Exception:
         return await query.answer(_lang["tg_8"], show_alert=True)
