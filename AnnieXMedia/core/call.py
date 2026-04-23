@@ -1,13 +1,13 @@
 # Authored By Certified Coders © 2026
 # System: PyTgCalls V2.2.11 Core Call Controller
-# Optimized for Python 3.13+ Asyncio & NTgCalls Native Binds (2026 Anti-Ban Edition)
+# Optimized for Python 3.13+ Asyncio, NTgCalls Native Binds & Suppress
 
 import asyncio
 import logging
 import traceback
 from datetime import datetime, timedelta
-from typing import Union, Optional
 from asyncio import Lock
+from contextlib import suppress
 
 from pyrogram import enums, errors
 from pyrogram.types import InlineKeyboardMarkup, InputMediaPhoto
@@ -95,13 +95,15 @@ def _build_stream(path: str, video: bool = False, ffmpeg_opts: str = "") -> Medi
 
 async def _clear_(chat_id: int) -> None:
     popped = db.pop(chat_id, None)
-    if popped: await auto_clean(popped)
+    if popped: 
+        await auto_clean(popped)
     db[chat_id] = []
-    try:
+    
+    # 🚀 بايثون 3.13: استخدام Suppress للتخطي الصامت للأخطاء 
+    with suppress(Exception):
         await remove_active_video_chat(chat_id)
         await remove_active_chat(chat_id)
         await set_loop(chat_id, 0)
-    except Exception: pass
 
 
 class Call:
@@ -128,20 +130,24 @@ class Call:
         return self.chat_locks[chat_id]
 
     async def _edit_media_with_retry(self, message, media_obj: InputMediaPhoto, reply_markup):
-        try: return await message.edit_media(media=media_obj, reply_markup=reply_markup)
+        try: 
+            return await message.edit_media(media=media_obj, reply_markup=reply_markup)
         except errors.FloodWait as fw:
             await asyncio.sleep(fw.value + 1)
-            try: return await message.edit_media(media=media_obj, reply_markup=reply_markup)
-            except Exception: return None
-        except Exception: return None
+            with suppress(Exception):
+                return await message.edit_media(media=media_obj, reply_markup=reply_markup)
+        except Exception: 
+            return None
 
     async def _send_photo_with_retry(self, chat_id: int, photo, caption: str, reply_markup):
-        try: return await app.send_photo(chat_id=chat_id, photo=photo, caption=caption, reply_markup=reply_markup)
+        try: 
+            return await app.send_photo(chat_id=chat_id, photo=photo, caption=caption, reply_markup=reply_markup)
         except errors.FloodWait as fw:
             await asyncio.sleep(fw.value + 1)
-            try: return await app.send_photo(chat_id=chat_id, photo=photo, caption=caption, reply_markup=reply_markup)
-            except Exception: return None
-        except Exception: return None
+            with suppress(Exception):
+                return await app.send_photo(chat_id=chat_id, photo=photo, caption=caption, reply_markup=reply_markup)
+        except Exception: 
+            return None
 
     async def pause_stream(self, chat_id: int) -> None:
         async with self.get_lock(chat_id):
@@ -167,31 +173,30 @@ class Call:
         async with self.get_lock(chat_id):
             assistant = await group_assistant(self, chat_id)
             await _clear_(chat_id)
-            try: 
+            with suppress(Exception):
                 await assistant.leave_call(chat_id, close=False)
-            except Exception: pass
-            finally: self.active_calls.discard(chat_id)
+            self.active_calls.discard(chat_id)
 
     async def force_stop_stream(self, chat_id: int) -> None:
         async with self.get_lock(chat_id):
             assistant = await group_assistant(self, chat_id)
-            try:
+            with suppress(Exception):
                 check = db.get(chat_id)
                 if check: check.pop(0)
-            except Exception: pass
             
             await remove_active_video_chat(chat_id)
             await remove_active_chat(chat_id)
             await _clear_(chat_id)
-            try: 
+            
+            with suppress(Exception):
                 await assistant.leave_call(chat_id, close=True)
-            except Exception: pass
-            finally: self.active_calls.discard(chat_id)
+            self.active_calls.discard(chat_id)
 
     async def change_volume_call(self, chat_id: int, volume: int) -> None:
         async with self.get_lock(chat_id):
             assistant = await group_assistant(self, chat_id)
-            try: await assistant.change_volume_call(chat_id, volume)
+            try: 
+                await assistant.change_volume_call(chat_id, volume)
             except Exception as e:
                 LOGGER(__name__).error(f"Failed to change volume for {chat_id}: {e}")
                 raise AssistantErr(f"Failed to change volume: {e}")
@@ -210,19 +215,18 @@ class Call:
             stream = _build_stream(link, video=video)
             await assistant.play(chat_id, stream, config=GroupCallConfig(auto_start=True))
 
-    async def join_call(self, chat_id: int, original_chat_id: int, link: str, video: bool = False, image: str = None) -> None:
+    async def join_call(self, chat_id: int, original_chat_id: int, link: str, video: bool = False, image: str | None = None) -> None:
         async with self.get_lock(chat_id):
             assistant = await group_assistant(self, chat_id)
             lang = await get_lang(chat_id)
             _ = get_string(lang)
 
-            try:
+            with suppress(Exception):
                 chat = await app.get_chat(chat_id)
                 if chat.type == enums.ChatType.CHANNEL:
                     assistant_member = await app.get_chat_member(chat_id, assistant.me.id)
                     if assistant_member.status == enums.ChatMemberStatus.BANNED:
                         raise AssistantErr("❌ Assistant is banned in this channel.")
-            except Exception: pass
 
             final_link = link
             stream = _build_stream(final_link, video=video)
@@ -238,12 +242,11 @@ class Call:
                         continue
                     raise AssistantErr(_["call_8"])
                 except Exception as e:
-                    import traceback
                     traceback.print_exc()
                     if "group call not found" in str(e).lower() or "cannot be initialized" in str(e).lower():
                         if attempt < max_retries - 1:
-                            try: await assistant.leave_call(chat_id)
-                            except Exception: pass
+                            with suppress(Exception):
+                                await assistant.leave_call(chat_id)
                             await asyncio.sleep(1)
                             continue
                     raise AssistantErr(f"Error: {e}")
@@ -251,14 +254,15 @@ class Call:
             self.active_calls.add(chat_id)
             await add_active_chat(chat_id)
             await music_on(chat_id)
-            if video: await add_active_video_chat(chat_id)
+            if video: 
+                await add_active_video_chat(chat_id)
             
             if await is_autoend():
                 counter[chat_id] = {}
-                try:
+                with suppress(Exception):
                     users = len(await assistant.get_participants(chat_id))
-                    if users == 1: autoend[chat_id] = datetime.now() + timedelta(minutes=1)
-                except Exception: pass
+                    if users == 1: 
+                        autoend[chat_id] = datetime.now() + timedelta(minutes=1)
 
     async def start(self) -> None:
         LOGGER(__name__).info("Starting PyTgCalls Clients (NTgCalls v2.2.11)...")
@@ -318,23 +322,24 @@ class Call:
                     loop = loop - 1
                     await set_loop(chat_id, loop)
                 
-                if popped: await auto_clean(popped)
+                if popped: 
+                    await auto_clean(popped)
                 
                 if not check:
                     await _clear_(chat_id)
-                    try: await client.leave_call(chat_id, close=False)
-                    except Exception: pass
-                    finally: self.active_calls.discard(chat_id)
+                    with suppress(Exception):
+                        await client.leave_call(chat_id, close=False)
+                    self.active_calls.discard(chat_id)
                     
                     if config.AUTO_END:
-                        try: await app.send_message(chat_id, "✅ Queue finished. Stream ended automatically.")
-                        except Exception: pass
+                        with suppress(Exception):
+                            await app.send_message(chat_id, "✅ Queue finished. Stream ended automatically.")
                     return
             except Exception:
-                try: 
-                    await _clear_(chat_id)
+                await _clear_(chat_id)
+                with suppress(Exception):
                     return await client.leave_call(chat_id, close=False)
-                except Exception: return
+                return
 
             queued = check[0].get("file")
             title = (check[0].get("title") or "").title()
@@ -367,17 +372,19 @@ class Call:
             try:
                 await client.play(chat_id, stream, config=GroupCallConfig(auto_start=True))
                 
-                if is_video: await add_active_video_chat(chat_id)
-                else: await remove_active_video_chat(chat_id)
+                if is_video: 
+                    await add_active_video_chat(chat_id)
+                else: 
+                    await remove_active_video_chat(chat_id)
 
                 img = await get_thumb(videoid)
                 from AnnieXMedia.utils.inline import stream_markup
                 button = stream_markup(get_string(await get_lang(chat_id)), chat_id)
                 
-                try:
+                # 🚀 بايثون 3.13: مسح الرسالة القديمة بصمت
+                with suppress(Exception):
                     if db[chat_id][0].get("mystic"):
                         await db[chat_id][0].get("mystic").delete()
-                except Exception: pass
                 
                 caption_text = get_string(await get_lang(chat_id))["stream_1"].format(
                     f"https://t.me/{app.username}?start=info_{videoid}", 
@@ -398,11 +405,10 @@ class Call:
                     db[chat_id][0]["markup"] = "stream"
                 
             except Exception as e:
-                import traceback
                 traceback.print_exc()
                 LOGGER(__name__).error(f"Queue Play Error: {e}")
                 await _clear_(chat_id)
-                try: await app.send_message(original_chat_id, "❌ Failed to switch stream.")
-                except Exception: pass
+                with suppress(Exception):
+                    await app.send_message(original_chat_id, "❌ Failed to switch stream.")
 
 StreamController = Call()
