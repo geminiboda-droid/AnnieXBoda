@@ -69,27 +69,28 @@ def _build_stream(path: str, video: bool = False, ffmpeg_opts: str = "") -> Medi
     """بناء مجرى البيانات وفقاً لأحدث معايير MediaStream مع تخطي حمايات 2026"""
     path = str(path)
     
-    # 🔴 تم التعديل: إزالة "-threads 2" لفتح استهلاك الـ 10 كور بالكامل
-    # 🔴 تم التعديل: إضافة أوامر reconnect لمنع تقطيع الفيديو نهائياً
-    base_flags = (
-        "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 "
-        "-probesize 10M -analyzeduration 10M -rtbufsize 5M "
-        "-fflags +genpts+igndts+nobuffer -sync ext "
-    )
+    # 🔴 التعديلات الصاروخية:
+    # 1. إزالة فلاتر الصوت التلقائية لمنع (الصوت اللي بيوطى ويعلى لوحده)
+    # 2. إزالة -nobuffer للسماح بالكاش ومنع التقطيع
+    # 3. استخدام -threads 0 لتسخير كل أنوية السيرفر
+    # 4. عدم استخدام reconnect يدوي لتجنب تهنيج الروابط
+    
+    base_flags = "-probesize 10M -analyzeduration 10M -threads 0 "
     final_ffmpeg = base_flags + ffmpeg_opts
     
     headers = {
-        "User-Agent": "Mozilla/5.0 (Linux; Android 14; SM-S928B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Mobile Safari/537.36"
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
     }
     
     return MediaStream(
         media_path=path,
-        audio_parameters=AudioQuality.HIGH, 
+        audio_parameters=AudioQuality.HIGH, # جودة صوت ثابتة عالية
         video_parameters=VideoQuality.HD_720p, 
         video_flags=MediaStream.Flags.REQUIRED if video else MediaStream.Flags.IGNORE,
         audio_flags=MediaStream.Flags.REQUIRED,
         ffmpeg_parameters=final_ffmpeg,
         headers=headers,
+        keep_open=True # 🔴 السر في منع فصل المكالمة عند ذبذبة الإنترنت
     )
 
 
@@ -353,7 +354,6 @@ class Call:
             
             final_link = queued
 
-            # 🔴 تم التعديل: حل مشكلة تخطي القائمة (Queue Skipping Fix)
             if videoid and (str(queued).startswith("vid_") or str(queued).startswith("http") or str(streamtype) == "youtube"):
                  try:
                     direct = await YouTube.get_direct_link(f"https://www.youtube.com/watch?v={videoid}", prefer_audio=not is_video)
@@ -363,7 +363,6 @@ class Call:
                         raise Exception("Direct link extraction returned None")
                  except Exception as e:
                      LOGGER(__name__).error(f"Queue URL Fetch Error: {e}")
-                     # 🔴 خطوة الأمان: لو الرابط باظ، شغل اللي بعده بدل ما تبعت مسار وهمي يعطل FFmpeg
                      await self.play(client, chat_id)
                      return
 
@@ -381,7 +380,6 @@ class Call:
                 from AnnieXMedia.utils.inline import stream_markup
                 button = stream_markup(get_string(await get_lang(chat_id)), chat_id)
                 
-                # 🚀 بايثون 3.13: مسح الرسالة القديمة بصمت
                 with suppress(Exception):
                     if db[chat_id][0].get("mystic"):
                         await db[chat_id][0].get("mystic").delete()
