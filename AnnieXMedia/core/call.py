@@ -89,8 +89,7 @@ def _build_stream(path: str, video: bool = False, ffmpeg_opts: str = "") -> Medi
         video_flags=MediaStream.Flags.REQUIRED if video else MediaStream.Flags.IGNORE,
         audio_flags=MediaStream.Flags.REQUIRED,
         ffmpeg_parameters=final_ffmpeg,
-        headers=headers,
-        keep_open=True # 🔴 السر في منع فصل المكالمة عند ذبذبة الإنترنت
+        headers=headers
     )
 
 
