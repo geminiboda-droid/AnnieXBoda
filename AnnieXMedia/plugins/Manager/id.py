@@ -1,59 +1,60 @@
-﻿# Authored By Certified Coders © 2025
+# Authored By Certified Coders © 2026
+import re
 from pyrogram import filters
 from pyrogram.enums import ParseMode
-from pyrogram.types import Message
+from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
 
 from AnnieXMedia import app
 
-
-@app.on_message(filters.command("id"))
-async def get_id(client, message: Message):
-    chat, user, reply = message.chat, message.from_user, message.reply_to_message
-    out = []
-
-    if message.link:
-        out.append(f"**[ᴍᴇssᴀɢᴇ ɪᴅ:]({message.link})** `{message.id}`")
+@app.on_message(filters.regex(r"^(id|ا|ايدي|الايدي)$", flags=re.IGNORECASE))
+async def get_id_custom(client, message: Message):
+    chat = message.chat
+    
+    # 1. تحديد الشخص المستهدف (لو عامل ريبلاي هيجيب بيانات التاني، لو مفيش هيجيب بياناتك)
+    if message.reply_to_message and message.reply_to_message.from_user:
+        target_user = message.reply_to_message.from_user
     else:
-        out.append(f"**ᴍᴇssᴀɢᴇ ɪᴅ:** `{message.id}`")
+        target_user = message.from_user
 
-    out.append(f"**[ʏᴏᴜʀ ɪᴅ:](tg://user?id={user.id})** `{user.id}`")
+    if not target_user:
+        return await message.reply_text("**تعذر العثور على بيانات المستخدم.**")
 
-    if len(message.command) == 2:
-        try:
-            target = message.text.split(maxsplit=1)[1]
-            tgt_user = await client.get_users(target)
-            out.append(f"**[ᴜsᴇʀ ɪᴅ:](tg://user?id={tgt_user.id})** `{tgt_user.id}`")
-        except Exception:
-            return await message.reply_text("**ᴛʜɪs ᴜsᴇʀ ᴅᴏᴇsɴ'ᴛ ᴇxɪsᴛ.**", quote=True)
+    # 2. سحب البايو (يحتاج فحص عميق للحساب)
+    try:
+        full_user = await client.get_chat(target_user.id)
+        bio = full_user.bio or "لا يوجد بايو"
+    except Exception:
+        bio = "لا يوجد بايو"
 
-    if chat.username and chat.type != "private":
-        out.append(f"**[ᴄʜᴀᴛ ɪᴅ:](https://t.me/{chat.username})** `{chat.id}`")
-    else:
-        out.append(f"**ᴄʜᴀᴛ ɪᴅ:** `{chat.id}`")
+    # 3. تظبيط البيانات
+    name = target_user.first_name
+    if target_user.last_name:
+        name += f" {target_user.last_name}"
+        
+    username = f"@{target_user.username}" if target_user.username else "لا يوجد"
+    user_id = target_user.id
+    chat_name = chat.title if chat.title else "محادثة خاصة"
+    chat_id = chat.id
 
-    if reply:
-        if reply.link:
-            out.append(f"**[ʀᴇᴘʟɪᴇᴅ ᴍᴇssᴀɢᴇ ɪᴅ:]({reply.link})** `{reply.id}`")
-        else:
-            out.append(f"**ʀᴇᴘʟɪᴇᴅ ᴍᴇssᴀɢᴇ ɪᴅ:** `{reply.id}`")
+    # 4. تجميع النص بالشكل المطلوب
+    text = (
+        f"╭⎋¦ᚐ𝙽𝙰𝙼𝙴 : {name}\n"
+        f"╰⊚ᚐᴜsᴇʀᚐ : {username}\n"
+        f"╭⎋ɪᴅᚐ : `{user_id}`\n"
+        f"╰⊚ᚐʙɪᴏᚐ : {bio}\n"
+        f"♥ ¦ 𝙲𝙷𝙰𝚃 : {chat_name}\n"
+        f"☘️ ¦ 𝙸𝙳.𝙶𝚁𝙾𝚄𝙿 : `{chat_id}`"
+    )
 
-        if reply.from_user:
-            out.append(
-                f"**[ʀᴇᴘʟɪᴇᴅ ᴜsᴇʀ ɪᴅ:](tg://user?id={reply.from_user.id})** "
-                f"`{reply.from_user.id}`"
-            )
+    # 5. زر الانلاين للدخول للبروفايل
+    markup = InlineKeyboardMarkup([
+        [InlineKeyboardButton("• الدخول للبروفايل •", url=f"tg://user?id={user_id}")]
+    ])
 
-        if reply.forward_from_chat:
-            out.append(
-                f"ᴛʜᴇ ғᴏʀᴡᴀʀᴅᴇᴅ ᴄʜᴀɴɴᴇʟ **{reply.forward_from_chat.title}** "
-                f"ʜᴀs ɪᴅ `{reply.forward_from_chat.id}`"
-            )
-
-        if reply.sender_chat:
-            out.append(f"ɪᴅ ᴏғ ᴛʜᴇ ʀᴇᴘʟɪᴇᴅ ᴄʜᴀᴛ/ᴄʜᴀɴɴᴇʟ: `{reply.sender_chat.id}`")
-
+    # 6. إرسال الرسالة
     await message.reply_text(
-        "\n".join(out),
+        text,
+        reply_markup=markup,
         disable_web_page_preview=True,
-        parse_mode=ParseMode.MARKDOWN,
+        parse_mode=ParseMode.MARKDOWN
     )
