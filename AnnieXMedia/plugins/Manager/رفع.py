@@ -1,6 +1,6 @@
 # Authored By Certified Coders 2026
 # Module: Admin Promotions (Arabic + No Emojis)
-# Optimized for Python 3.13 & Strict Collision Prevention
+# Fixed: No More "unhashable type: 'user'" Error
 
 import asyncio
 import re
@@ -73,9 +73,16 @@ async def _info(msg: Message, text: str):
 
 def _format_success(action: str, chat: Message, uid: int, name: str, title: Optional[str] = None) -> str:
     chat_name = chat.chat.title
-    # التأكد من إرسال الـ ID كرقم صحيح لتجنب unhashable error
-    user_m    = mention(int(uid), name)
-    admin_m   = mention(int(chat.from_user.id), chat.from_user.first_name)
+    # إجبار اليوزر أيدي يكون رقم صحيح (int) لمنع خطأ unhashable
+    try:
+        u_id = int(uid)
+        a_id = int(chat.from_user.id)
+    except:
+        u_id = uid
+        a_id = chat.from_user.id
+
+    user_m    = mention(u_id, name)
+    admin_m   = mention(a_id, chat.from_user.first_name)
     text = (
         f"{action} في {chat_name}\n"
         f"العضو : {user_m}\n"
@@ -99,18 +106,18 @@ async def promote_command(client, message: Message):
         return await _info(message, _usage("promote"))
 
     data = await extract_user_and_title(message, client)
-    if not data:
-        return
-        
-    uid, name, title = data
-    if not uid:
-        return
+    if not data: return
+    
+    # التأكد أن uid رقم وليس كائن مستخدم
+    raw_uid, name, title = data
+    try:
+        uid = int(raw_uid.id) if hasattr(raw_uid, "id") else int(raw_uid)
+    except:
+        uid = raw_uid
+
+    if not uid: return
 
     try:
-        member = await client.get_chat_member(message.chat.id, uid)
-        if member.status == enums.ChatMemberStatus.ADMINISTRATOR:
-            return await _info(message, "هذا العضو مشرف بالفعل.")
-            
         await client.promote_chat_member(
             chat_id=message.chat.id,
             user_id=uid,
@@ -119,15 +126,14 @@ async def promote_command(client, message: Message):
         if title:
             try:
                 await client.set_administrator_title(message.chat.id, uid, title)
-            except Exception:
-                pass
+            except: pass
         await message.reply_text(_format_success("تم رفع مشرف", message, uid, name, title))
     except ChatAdminRequired:
         await message.reply_text("أحتاج صلاحية إضافة مشرفين.")
     except UserAdminInvalid:
         await message.reply_text("لا يمكنني رفع هذا العضو.")
     except Exception as e:
-        await message.reply_text(f"حدث خطأ: {e}")
+        await message.reply_text(f"خطأ: {e}")
 
 # ────────────────────────────────────────────────────────────
 # أمر الرفع الكامل
@@ -142,12 +148,13 @@ async def fullpromote_command(client, message: Message):
         return await _info(message, _usage("fullpromote"))
 
     data = await extract_user_and_title(message, client)
-    if not data:
-        return
-        
-    uid, name, title = data
-    if not uid:
-        return
+    if not data: return
+    
+    raw_uid, name, title = data
+    try:
+        uid = int(raw_uid.id) if hasattr(raw_uid, "id") else int(raw_uid)
+    except:
+        uid = raw_uid
 
     try:
         await client.promote_chat_member(
@@ -158,8 +165,7 @@ async def fullpromote_command(client, message: Message):
         if title:
             try:
                 await client.set_administrator_title(message.chat.id, uid, title)
-            except Exception:
-                pass
+            except: pass
         await message.reply_text(_format_success("تم رفع مشرف بكل الصلاحيات", message, uid, name, title))
     except ChatAdminRequired:
         await message.reply_text("أحتاج صلاحية إضافة مشرفين.")
@@ -179,12 +185,13 @@ async def demote_command(client, message: Message):
         return await _info(message, _usage("demote"))
 
     data = await extract_user_and_title(message, client)
-    if not data:
-        return
-        
-    uid, name, _ = data
-    if not uid:
-        return
+    if not data: return
+    
+    raw_uid, name, _ = data
+    try:
+        uid = int(raw_uid.id) if hasattr(raw_uid, "id") else int(raw_uid)
+    except:
+        uid = raw_uid
 
     try:
         await client.promote_chat_member(
@@ -221,14 +228,15 @@ async def tempadmin_command(client, message: Message):
             user = await client.get_users(message.command[1])
             time_arg = message.command[2]
             title = message.text.partition(time_arg)[2].strip() or None
-        except Exception:
+        except:
             return await message.reply_text("لم يتم العثور على العضو.")
 
     delta = parse_time(time_arg)
     if not delta:
-        return await message.reply_text("صيغة الوقت خاطئة. استخدم s للثواني، m للدقائق، h للساعات.")
+        return await message.reply_text("صيغة الوقت خاطئة.")
 
-    uid, name = user.id, user.first_name
+    uid = int(user.id)
+    name = user.first_name
 
     try:
         await client.promote_chat_member(
@@ -236,31 +244,15 @@ async def tempadmin_command(client, message: Message):
             user_id=uid,
             privileges=_FULL_PRIVS,
         )
-        if title:
-            try:
-                await client.set_administrator_title(message.chat.id, uid, title)
-            except Exception:
-                pass
         await message.reply_text(_format_success(f"تم رفعه مؤقتا لمدة {time_arg}", message, uid, name, title))
         
         async def _auto_demote():
             await asyncio.sleep(delta.total_seconds())
             try:
-                await client.promote_chat_member(
-                    chat_id=message.chat.id,
-                    user_id=uid,
-                    privileges=_DEMOTE_PRIVS,
-                )
-                await client.send_message(
-                    message.chat.id,
-                    f"تم تنزيل {mention(uid, name)} تلقائيا بعد انتهاء مدة {time_arg}."
-                )
-            except Exception:
-                pass
+                await client.promote_chat_member(chat_id=message.chat.id, user_id=uid, privileges=_DEMOTE_PRIVS)
+                await client.send_message(message.chat.id, f"انتهت مدة رفع {mention(uid, name)} وتم تنزيله.")
+            except: pass
 
         asyncio.create_task(_auto_demote())
-        
-    except ChatAdminRequired:
-        return await message.reply_text("أحتاج صلاحية إضافة مشرفين.")
-    except UserAdminInvalid:
-        return await message.reply_text("لا يمكنني رفع هذا العضو.")
+    except Exception as e:
+        await message.reply_text(f"فشل الرفع المؤقت: {e}")
