@@ -28,8 +28,7 @@ async def _safe_reply_text(message: Message, *args, **kwargs):
 # ==================================================================
 
 # --- فتح الكول ---
-# prefixes="" تعني أن الأمر يعمل بدون أي علامات
-@app.on_message(filters.command(["فتح الكول", "افتح الكول", "openvc"], prefixes="") & SUDOERS)
+@app.on_message(filters.command(["فتح الكول", "افتح الكول", "openvc"], prefixes=["", "/", "!", "."]) & filters.group & SUDOERS)
 async def start_group_call(client, message: Message):
     chat_id = message.chat.id
     msg = await message.reply_text("انـتـظـر قـلـيـلا...")
@@ -43,18 +42,20 @@ async def start_group_call(client, message: Message):
                 random_id=random.randint(10000, 999999999)
             )
         )
-        await msg.edit_text("**تـم فـتـح الـمـكـالـمـة الـصـوتـيـة.**")
+        await msg.edit_text("**تـم فـتـح الـمـكـالـمـة الـصـوتـيـة بـنـجـاح.**")
         
     except Exception as e:
-        if "GROUPCALL_ALREADY_JOINED" in str(e):
+        if "PEER_ID_INVALID" in str(e):
+             await msg.edit_text("**عـذرا!** يـجـب إضـافـة الـحـسـاب الـمـسـاعـد إلـى الـمـجـمـوعـة أولا.")
+        elif "GROUPCALL_ALREADY_JOINED" in str(e):
              await msg.edit_text("**الـمـكـالـمـة مـفـتـوحـة بـالـفـعـل!**")
         elif "CHAT_ADMIN_REQUIRED" in str(e):
-             await msg.edit_text("**فـشـل!** يـجـب أن يـكـون الـمـسـاعـد مـشـرفـاً.")
+             await msg.edit_text("**فـشـل!** يـجـب أن يـكـون الـحـسـاب الـمـسـاعـد مـشـرفـاً.")
         else:
             await msg.edit_text(f"**حـدث خـطـأ:** `{e}`")
 
 # --- قفل الكول ---
-@app.on_message(filters.command(["قفل الكول", "اقفل الكول", "closevc"], prefixes="") & SUDOERS)
+@app.on_message(filters.command(["قفل الكول", "اقفل الكول", "closevc"], prefixes=["", "/", "!", "."]) & filters.group & SUDOERS)
 async def end_group_call(client, message: Message):
     chat_id = message.chat.id
     msg = await message.reply_text("انـتـظـر قـلـيـلا...")
@@ -74,7 +75,10 @@ async def end_group_call(client, message: Message):
         await msg.edit_text("**تـم إغـلاق الـمـكـالـمـة الـصـوتـيـة.**")
 
     except Exception as e:
-        await msg.edit_text(f"**حـدث خـطـأ:** `{e}`")
+        if "PEER_ID_INVALID" in str(e):
+             await msg.edit_text("**عـذرا!** الـحـسـاب الـمـسـاعـد لـيـس فـي الـمـجـمـوعـة.")
+        else:
+            await msg.edit_text(f"**حـدث خـطـأ:** `{e}`")
 
 # ==================================================================
 # [2] مراقبة الأحداث (إشعارات معربة بدون إيموجي)
@@ -114,7 +118,7 @@ async def on_voice_chat_members_invited(_, message: Message):
         )
 
 
-@app.on_message(filters.command("leavegroup", prefixes="") & filters.user(OWNER_ID) & filters.group)
+@app.on_message(filters.command("leavegroup", prefixes=["", "/", "!", "."]) & filters.user(OWNER_ID) & filters.group)
 async def leave_group(_, message: Message):
     await _safe_reply_text(message, "**جـارٍ مـغـادرة الـمـجـمـوعـة...**")
     with suppress(ChatWriteForbidden, Forbidden, ChannelPrivate):
