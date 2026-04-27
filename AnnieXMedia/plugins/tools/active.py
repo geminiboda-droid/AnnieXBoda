@@ -19,7 +19,7 @@ from AnnieXMedia.utils.database import (
 # ==================================================================
 
 # --- قائمة الكولات الصوتية ---
-@app.on_message(filters.command(["activevc", "كولات", "الكولات"]) & SUDOERS)
+@app.on_message(filters.command(["activevc", "كولات", "الكولات"], prefixes=["", "/", "!", "."]) & SUDOERS)
 async def activevc(_, message: Message):
     mystic = await message.reply_text("جاري جلب قائمة المكالمات الصوتية النشطة...")
     served_chats = await get_active_chats()
@@ -43,7 +43,7 @@ async def activevc(_, message: Message):
         )
 
 # --- قائمة كولات الفيديو ---
-@app.on_message(filters.command(["activevideo", "فيديو", "avc"]) & SUDOERS)
+@app.on_message(filters.command(["activevideo", "فيديو", "avc"], prefixes=["", "/", "!", "."]) & SUDOERS)
 async def activevi_(_, message: Message):
     mystic = await message.reply_text("جاري جلب قائمة مكالمات الفيديو النشطة...")
     served_chats = await get_active_video_chats()
@@ -67,7 +67,7 @@ async def activevi_(_, message: Message):
         )
 
 # --- إحصائيات العدد ---
-@app.on_message(filters.command(["ac", "احصائيات", "av"]) & SUDOERS)
+@app.on_message(filters.command(["ac", "احصائيات", "av"], prefixes=["", "/", "!", "."]) & SUDOERS)
 async def active_count(client: Client, message: Message):
     ac_audio = str(len(await get_active_chats()))
     ac_video = str(len(await get_active_video_chats()))
