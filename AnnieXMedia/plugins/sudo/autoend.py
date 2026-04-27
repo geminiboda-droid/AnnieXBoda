@@ -9,7 +9,7 @@ from AnnieXMedia.utils.database import autoend_off, autoend_on
 
 @app.on_message(
     filters.regex(r"^(تفعيل|إفعيل|ايقاف|إيقاف|تعطيل) (الانهاء التلقائي|الإنهاء التلقائي)$", flags=re.IGNORECASE) 
-    & filters.user(SUDOERS)
+    & SUDOERS
 )
 async def auto_end_stream_v2(_, message: Message):
     input_text = message.text.lower()
