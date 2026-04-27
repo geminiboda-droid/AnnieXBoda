@@ -29,7 +29,7 @@ async def _safe_reply_text(message: Message, *args, **kwargs):
 
 # --- فتح الكول ---
 # prefixes="" تعني أن الأمر يعمل بدون أي علامات
-@app.on_message(filters.command(["فتح الكول", "افتح الكول", "openvc"], prefixes="") & filters.user(SUDOERS))
+@app.on_message(filters.command(["فتح الكول", "افتح الكول", "openvc"], prefixes="") & SUDOERS)
 async def start_group_call(client, message: Message):
     chat_id = message.chat.id
     msg = await message.reply_text("انـتـظـر قـلـيـلا...")
@@ -54,7 +54,7 @@ async def start_group_call(client, message: Message):
             await msg.edit_text(f"**حـدث خـطـأ:** `{e}`")
 
 # --- قفل الكول ---
-@app.on_message(filters.command(["قفل الكول", "اقفل الكول", "closevc"], prefixes="") & filters.user(SUDOERS))
+@app.on_message(filters.command(["قفل الكول", "اقفل الكول", "closevc"], prefixes="") & SUDOERS)
 async def end_group_call(client, message: Message):
     chat_id = message.chat.id
     msg = await message.reply_text("انـتـظـر قـلـيـلا...")
