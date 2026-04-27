@@ -1,4 +1,4 @@
-﻿# Authored By Certified Coders © 2025
+# Authored By Certified Coders © 2025
 from pyrogram.enums import ChatType
 from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
@@ -25,7 +25,7 @@ def AdminRightsCheck(mystic):
         if await is_maintenance() is False:
             if message.from_user.id not in SUDOERS:
                 return await message.reply_text(
-                    text=f"{app.mention} ɪs ᴜɴᴅᴇʀ ᴍᴀɪɴᴛᴇɴᴀɴᴄᴇ, ᴠɪsɪᴛ <a href={SUPPORT_CHAT}>sᴜᴘᴘᴏʀᴛ ᴄʜᴀᴛ</a> ғᴏʀ ᴋɴᴏᴡɪɴɢ ᴛʜᴇ ʀᴇᴀsᴏɴ.",
+                    text=f"البوت حاليا في وضع الصيانة والتحديث. يرجى زيارة <a href={SUPPORT_CHAT}>مجموعة الدعم</a> لمعرفة السبب وتفاصيل التحديث.",
                     disable_web_page_preview=True,
                 )
 
@@ -44,52 +44,56 @@ def AdminRightsCheck(mystic):
                 [
                     [
                         InlineKeyboardButton(
-                            text="ʜᴏᴡ ᴛᴏ ғɪx ?",
+                            text="كيفية إصلاح المشكلة ؟",
                             callback_data="AnonymousAdmin",
                         ),
                     ]
                 ]
             )
-            return await message.reply_text(_["general_3"], reply_markup=upl)
+            return await message.reply_text("عذرا، أنت تكتب بصفتك قناة أو مشرف متخفي. يرجى إظهار حسابك الشخصي لتتمكن من استخدام أوامر البوت.", reply_markup=upl)
+        
         if message.command[0][0] == "c":
             chat_id = await get_cmode(message.chat.id)
             if chat_id is None:
-                return await message.reply_text(_["setting_7"])
+                return await message.reply_text("لم يتم تحديد مجموعة للتشغيل عن بعد. يرجى تحديد المجموعة أولا.")
             try:
                 await app.get_chat(chat_id)
             except:
-                return await message.reply_text(_["cplay_4"])
+                return await message.reply_text("غير قادر على الوصول إلى المجموعة المحددة. تأكد من أن البوت مشرف هناك.")
         else:
             chat_id = message.chat.id
+            
         if not await is_active_chat(chat_id):
-            return await message.reply_text(_["general_5"])
+            return await message.reply_text("لا توجد محادثة صوتية نشطة حاليا. يرجى تشغيل شيء أولا لتتمكن من استخدام هذا الأمر.")
+            
         is_non_admin = await is_nonadmin_chat(message.chat.id)
         if not is_non_admin:
             if message.from_user.id not in SUDOERS:
                 admins = adminlist.get(message.chat.id)
                 if not admins:
-                    return await message.reply_text(_["admin_13"])
+                    return await message.reply_text("لا يوجد مشرفين مسجلين في ذاكرة البوت. يرجى كتابة أمر (تحديث) أو (reload) لتحديث قائمة المشرفين.")
                 else:
                     if message.from_user.id not in admins:
                         if await is_skipmode(message.chat.id):
                             upvote = await get_upvote_count(chat_id)
-                            text = f"""<b>ᴀᴅᴍɪɴ ʀɪɢʜᴛs ɴᴇᴇᴅᴇᴅ</b>
+                            text = f"""<b>عذرا، أنت لا تمتلك صلاحيات المشرف</b>
 
-ʀᴇғʀᴇsʜ ᴀᴅᴍɪɴ ᴄᴀᴄʜᴇ ᴠɪᴀ : /reload
+لتحديث قائمة المشرفين في ذاكرة البوت يرجى إرسال أمر : /reload
 
-» {upvote} ᴠᴏᴛᴇs ɴᴇᴇᴅᴇᴅ ғᴏʀ ᴘᴇʀғᴏʀᴍɪɴɢ ᴛʜɪs ᴀᴄᴛɪᴏɴ."""
+نظام التصويت مفعل: مطلوب عدد {upvote} أصوات من الأعضاء لتخطي هذا المسار."""
 
                             command = message.command[0]
                             if command[0] == "c":
                                 command = command[1:]
                             if command == "speed":
-                                return await message.reply_text(_["admin_14"])
+                                return await message.reply_text("عذرا، يجب أن تكون من مشرفي المجموعة أو من الإدارة للتحكم في سرعة التشغيل.")
+                                
                             MODE = command.title()
                             upl = InlineKeyboardMarkup(
                                 [
                                     [
                                         InlineKeyboardButton(
-                                            text="ᴠᴏᴛᴇ",
+                                            text="تصويت لتخطي المسار",
                                             callback_data=f"ADMIN  UpVote|{chat_id}_{MODE}",
                                         ),
                                     ]
@@ -101,7 +105,8 @@ def AdminRightsCheck(mystic):
                                 vidid = db[chat_id][0]["vidid"]
                                 file = db[chat_id][0]["file"]
                             except:
-                                return await message.reply_text(_["admin_14"])
+                                return await message.reply_text("عذرا، يجب أن تكون مشرفا في المجموعة لتنفيذ هذا الأمر.")
+                                
                             senn = await message.reply_text(text, reply_markup=upl)
                             confirmer[chat_id][senn.id] = {
                                 "vidid": vidid,
@@ -109,7 +114,7 @@ def AdminRightsCheck(mystic):
                             }
                             return
                         else:
-                            return await message.reply_text(_["admin_14"])
+                            return await message.reply_text("عذرا، يجب أن تكون مشرفا في المجموعة للتحكم في أوامر التشغيل المتقدمة.")
 
         return await mystic(client, message, _, chat_id)
 
@@ -121,7 +126,7 @@ def AdminActual(mystic):
         if await is_maintenance() is False:
             if message.from_user.id not in SUDOERS:
                 return await message.reply_text(
-                    text=f"{app.mention} ɪs ᴜɴᴅᴇʀ ᴍᴀɪɴᴛᴇɴᴀɴᴄᴇ, ᴠɪsɪᴛ <a href={SUPPORT_CHAT}>sᴜᴘᴘᴏʀᴛ ᴄʜᴀᴛ</a> ғᴏʀ ᴋɴᴏᴡɪɴɢ ᴛʜᴇ ʀᴇᴀsᴏɴ.",
+                    text=f"البوت حاليا في وضع الصيانة والتحديث. يرجى زيارة <a href={SUPPORT_CHAT}>مجموعة الدعم</a> لمعرفة السبب وتفاصيل التحديث.",
                     disable_web_page_preview=True,
                 )
 
@@ -135,29 +140,32 @@ def AdminActual(mystic):
             _ = get_string(language)
         except:
             _ = get_string("en")
+            
         if message.sender_chat:
             upl = InlineKeyboardMarkup(
                 [
                     [
                         InlineKeyboardButton(
-                            text="ʜᴏᴡ ᴛᴏ ғɪx ?",
+                            text="كيفية إصلاح المشكلة ؟",
                             callback_data="AnonymousAdmin",
                         ),
                     ]
                 ]
             )
-            return await message.reply_text(_["general_3"], reply_markup=upl)
+            return await message.reply_text("عذرا، أنت تكتب بصفتك قناة أو مشرف متخفي. يرجى إظهار حسابك الشخصي لتتمكن من استخدام أوامر البوت.", reply_markup=upl)
+            
         if message.from_user.id not in SUDOERS:
             try:
                 member = (
                     await app.get_chat_member(message.chat.id, message.from_user.id)
                 ).privileges
                 if not member:
-                    return await message.reply_text(_["general_4"])
+                    return await message.reply_text("عذرا، يجب أن تكون مشرفا في المجموعة وتمتلك صلاحيات الإدارة لتنفيذ هذا الأمر.")
             except:
                 return
             if not member.can_manage_video_chats:
-                return await message.reply(_["general_4"])
+                return await message.reply("عذرا، أنت لا تمتلك صلاحية (إدارة المحادثات الصوتية). يرجى الطلب من مالك المجموعة منحك هذه الصلاحية لتتمكن من التحكم بالبوت.")
+                
         return await mystic(client, message, _)
 
     return wrapper
@@ -168,7 +176,7 @@ def ActualAdminCB(mystic):
         if await is_maintenance() is False:
             if CallbackQuery.from_user.id not in SUDOERS:
                 return await CallbackQuery.answer(
-                    f"{app.mention} ɪs ᴜɴᴅᴇʀ ᴍᴀɪɴᴛᴇɴᴀɴᴄᴇ, ᴠɪsɪᴛ sᴜᴘᴘᴏʀᴛ ᴄʜᴀᴛ ғᴏʀ ᴋɴᴏᴡɪɴɢ ᴛʜᴇ ʀᴇᴀsᴏɴ.",
+                    "البوت حاليا في وضع الصيانة والتحديث. يرجى زيارة مجموعة الدعم لمعرفة السبب.",
                     show_alert=True,
                 )
         try:
@@ -176,8 +184,10 @@ def ActualAdminCB(mystic):
             _ = get_string(language)
         except:
             _ = get_string("en")
+            
         if CallbackQuery.message.chat.type == ChatType.PRIVATE:
             return await mystic(client, CallbackQuery, _)
+            
         is_non_admin = await is_nonadmin_chat(CallbackQuery.message.chat.id)
         if not is_non_admin:
             try:
@@ -188,9 +198,10 @@ def ActualAdminCB(mystic):
                     )
                 ).privileges
                 if not a:
-                    return await CallbackQuery.answer(_["general_4"], show_alert=True)
+                    return await CallbackQuery.answer("عذرا، يجب أن تكون مشرفا وتمتلك صلاحيات الإدارة لاستخدام هذه الأزرار.", show_alert=True)
             except:
-                return await CallbackQuery.answer(_["general_4"], show_alert=True)
+                return await CallbackQuery.answer("عذرا، يجب أن تكون مشرفا وتمتلك صلاحيات الإدارة لاستخدام هذه الأزرار.", show_alert=True)
+                
             if not a.can_manage_video_chats:
                 if CallbackQuery.from_user.id not in SUDOERS:
                     token = await int_to_alpha(CallbackQuery.from_user.id)
@@ -198,11 +209,12 @@ def ActualAdminCB(mystic):
                     if token not in _check:
                         try:
                             return await CallbackQuery.answer(
-                                _["general_4"],
+                                "عذرا، أنت لا تمتلك صلاحية إدارة المحادثات الصوتية. لا يمكنك التفاعل مع هذا الزر.",
                                 show_alert=True,
                             )
                         except:
                             return
+                            
         return await mystic(client, CallbackQuery, _)
 
     return wrapper
