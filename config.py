@@ -29,7 +29,7 @@ OWNER_USERNAME = getenv("OWNER_USERNAME", "𝐁ᴏᴅᴀ˼")
 # معلومات البوت والمساعد
 BOT_USERNAME = getenv("BOT_USERNAME", "Boda")
 BOT_NAME = getenv("BOT_NAME", "˹𝚂ᴏᴜʀᴄᴇ ✘ 𝐁ᴏᴅᴀ˼ ♪")
-ASSUSERNAME = getenv("ASSUSERNAME", "CertifiedCoder")
+ASSUSERNAME = getenv("ASSUSERNAME", "S_G0C7")
 
 # ── 🔥 المسارات النووية (Nuclear Paths) 🔥 ──────────────────────────────────
 DOWNLOAD_PATH = "/dev/shm/AnnieDownloads"
