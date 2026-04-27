@@ -1,7 +1,9 @@
 # Authored By Certified Coders 2026
 # Module: Admin Promotions (Arabic + No Emojis)
+# Optimized for Python 3.13 & Strict Collision Prevention
 
 import asyncio
+import re
 from typing import Optional
 
 from pyrogram import filters, enums
@@ -17,7 +19,6 @@ from AnnieXMedia.utils.permissions import extract_user_and_title, mention, parse
 # صلاحيات المشرفين (Privilege presets)
 # ────────────────────────────────────────────────────────────
 
-# صلاحيات الرفع العادي (بدون صلاحيات خطيرة)
 _LIMITED_PRIVS = ChatAdministratorRights(
     can_change_info=False,
     can_delete_messages=True,
@@ -30,7 +31,6 @@ _LIMITED_PRIVS = ChatAdministratorRights(
     is_anonymous=False,
 )
 
-# صلاحيات الرفع الكامل (كل الصلاحيات)
 _FULL_PRIVS = ChatAdministratorRights(
     can_manage_chat=True,
     can_change_info=True,
@@ -43,7 +43,6 @@ _FULL_PRIVS = ChatAdministratorRights(
     is_anonymous=False,
 )
 
-# صلاحيات التنزيل (سحب كل شيء)
 _DEMOTE_PRIVS = ChatAdministratorRights(
     can_change_info=False,
     can_delete_messages=False,
@@ -86,11 +85,17 @@ def _format_success(action: str, chat: Message, uid: int, name: str, title: Opti
     return text
 
 # ────────────────────────────────────────────────────────────
-# أمر الرفع (عادي)
+# أمر الرفع (عادي) - تم حل مشكلة التداخل
 # ────────────────────────────────────────────────────────────
-@app.on_message(filters.command(["رفع", "رفع مشرف", "promote"], prefixes=["", "/", "!", "."]))
+# الفلتر بيشترط إن الكلمة اللي بعد "رفع" ماتكونش "ادمن" ولا "جودة"
+@app.on_message(
+    filters.regex(r"^(?:[/!.]?)رفع(?:\s+(?!ادمن|جودة)(.*))?$", flags=re.IGNORECASE) & filters.group
+)
 @admin_required("can_promote_members")
 async def promote_command(client, message: Message):
+    # تهيئة مسار الأمر عشان دوال الاستخراج تشتغل صح
+    message.command = message.text.split()
+    
     if len(message.command) == 1 and not message.reply_to_message:
         return await _info(message, _usage("promote"))
 
@@ -122,11 +127,18 @@ async def promote_command(client, message: Message):
 # ────────────────────────────────────────────────────────────
 # أمر الرفع الكامل (كل الصلاحيات)
 # ────────────────────────────────────────────────────────────
-@app.on_message(filters.command(["رفع كامل", "مشرف كامل", "fullpromote"], prefixes=["", "/", "!", "."]))
+@app.on_message(
+    filters.regex(r"^(?:[/!.]?)رفع كامل(?:\s+(.*))?$", flags=re.IGNORECASE) & filters.group
+)
 @admin_required("can_promote_members")
 async def fullpromote_command(client, message: Message):
-    if len(message.command) == 1 and not message.reply_to_message:
+    message.command = message.text.split()
+    if len(message.command) <= 2 and not message.reply_to_message:
         return await _info(message, _usage("fullpromote"))
+
+    # استبعاد كلمة "كامل" من التايتل (اللقب)
+    if not message.reply_to_message:
+        message.command.pop(1)
 
     uid, name, title = await extract_user_and_title(message, client)
     if not uid:
@@ -156,9 +168,12 @@ async def fullpromote_command(client, message: Message):
 # ────────────────────────────────────────────────────────────
 # أمر التنزيل (إزالة المشرف)
 # ────────────────────────────────────────────────────────────
-@app.on_message(filters.command(["تنزيل", "تخفيض", "demote"], prefixes=["", "/", "!", "."]))
+@app.on_message(
+    filters.regex(r"^(?:[/!.]?)تنزيل(?:\s+(?!ادمن)(.*))?$", flags=re.IGNORECASE) & filters.group
+)
 @admin_required("can_promote_members")
 async def demote_command(client, message: Message):
+    message.command = message.text.split()
     if len(message.command) == 1 and not message.reply_to_message:
         return await _info(message, _usage("demote"))
 
@@ -185,22 +200,31 @@ async def demote_command(client, message: Message):
 # ────────────────────────────────────────────────────────────
 # أمر الرفع المؤقت
 # ────────────────────────────────────────────────────────────
-@app.on_message(filters.command(["رفع مؤقت", "tempadmin"], prefixes=["", "/", "!", "."]))
+@app.on_message(
+    filters.regex(r"^(?:[/!.]?)رفع مؤقت(?:\s+(.*))?$", flags=re.IGNORECASE) & filters.group
+)
 @admin_required("can_promote_members")
 async def tempadmin_command(client, message: Message):
+    message.command = message.text.split()
+    
     if ((not message.reply_to_message and len(message.command) < 3) or
         (message.reply_to_message and len(message.command) < 2)):
         return await _info(message, _usage("tempadmin"))
 
     if message.reply_to_message:
         user     = message.reply_to_message.from_user
-        time_arg = message.command[1]
+        # معالجة المدة عند الرد
+        try:
+            time_arg = message.command[2] if len(message.command) > 2 else message.command[1]
+        except IndexError:
+            return await _info(message, _usage("tempadmin"))
         title    = message.text.partition(time_arg)[2].strip() or None
     else:
-        user = await client.get_users(message.command[1])
+        # معالجة المدة عند استخدام اليوزرنيم
+        user = await client.get_users(message.command[2])
         if not user:
             return await message.reply_text("لم يتم العثور على العضو.")
-        time_arg = message.command[2]
+        time_arg = message.command[3] if len(message.command) > 3 else "0s"
         title    = message.text.partition(time_arg)[2].strip() or None
 
     delta = parse_time(time_arg)
