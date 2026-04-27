@@ -2,9 +2,12 @@ FROM python:3.13-slim
 
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
 
+# 🚀 تفعيل وضع الديباج عشان بايثون يفضح أي خطأ صامت
 ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
+    PYTHONFAULTHANDLER=1 \
+    PYTHONASYNCIODEBUG=1 \
     UV_SYSTEM_PYTHON=1 \
     DENO_INSTALL="/root/.deno" \
     PATH="/root/.deno/bin:/usr/local/bin:/usr/bin:${PATH}"
@@ -29,7 +32,6 @@ COPY requirements.txt .
 RUN grep -v -E -i '^(py-tgcalls|pytgcalls|deepai|numba|llvmlite|quimb)' requirements.txt > filtered.txt && \
     uv pip install --no-cache -r filtered.txt
 
-# 🚀 تم إزالة uvloop من هنا
 RUN uv pip install --no-cache \
     g4f \
     curl_cffi
@@ -41,5 +43,9 @@ RUN yt-dlp "ytsearch1:test" --dump-json > /dev/null 2>&1 || true
 
 COPY . .
 
-# 🚀 تم تعديل أمر التشغيل ليقوم بتشغيل الفولدر كـ Module
-CMD ["python3", "-m", "AnnieXMedia"]
+# 🚀 كشف الملف اللي بيخفي الخطأ الحقيقي وإجباره على طباعة مكان الخطأ بالظبط
+RUN find . -type f -name "*.py" -exec sed -i 's/Fatal Error Occurred/Fatal Error Occurred\\n" + __import__("traceback").format_exc() + "/g' {} + || true
+
+# 🚀 أمر التشغيل الذكي: هيشغل البوت، ولو البوت عمل كراش السيرفر مش هيقفل
+# هيفضل شغال عشان تدخل تشوف الخطأ براحتك
+CMD ["sh", "-c", "python3 -m AnnieXMedia ; echo '\n\n🚨 البوت توقف عن العمل! السيرفر لن يغلق لتمكينك من فحص الأخطاء... 🚨\n\n' ; tail -f /dev/null"]
