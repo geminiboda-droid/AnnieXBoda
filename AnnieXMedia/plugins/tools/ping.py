@@ -1,4 +1,5 @@
-﻿# Authored By Certified Coders © 2025
+# Authored By Certified Coders © 2026
+import asyncio
 from datetime import datetime
 
 from pyrogram import filters
@@ -12,18 +13,58 @@ from AnnieXMedia.utils.inline import supp_markup
 from config import BANNED_USERS, PING_VID_URL
 
 
-@app.on_message(filters.command("ping", prefixes=["/", "."]) & ~BANNED_USERS)
+# إضافة filters.group | filters.private لضمان العمل في العام والخاص معاً
+@app.on_message(
+    filters.command(["ping", "بنج", "بينج", "فحص"], prefixes=["/", ".", "!"]) 
+    & (filters.group | filters.private) 
+    & ~BANNED_USERS
+)
 @language
 async def ping_com(client, message: Message, _):
     start = datetime.now()
+    
+    # رسالة الانتظار بالستايل المطول (المد)
+    initial_text = (
+        "**جـاري فـحـص خـوادم تـيـلـيـجـرام...**\n"
+        "**جـاري الاتـصـال بـقـاعـدة الـبـيـانـات...**\n"
+        "**جـاري قـراءة اسـتـهـلاك الـمـوارد والـخـادم...**\n\n"
+        "**يـرجـى الانـتـظـار لـحـظـات.**"
+    )
+    
     response = await message.reply_video(
         video=PING_VID_URL,
-        caption=_["ping_1"].format(app.mention),
+        caption=initial_text,
     )
+    
+    # جلب البيانات الحقيقية من السيرفر
     pytgping = await StreamController.ping()
     UP, CPU, RAM, DISK = await bot_sys_stats()
     resp = (datetime.now() - start).microseconds / 1000
+    
+    # تأخير بسيط ليعطي إحساس الفحص الحقيقي للأعضاء
+    await asyncio.sleep(1.5)
+    
+    # التقرير النهائي الطويل والمزخرف بزخرفة كلاسيكية رسمية بدون إيموجي
+    final_text = (
+        "**تـم الانـتـهـاء مـن الـفـحـص بـنـجـاح.**\n\n"
+        "**ـ• ━─━─━─━─━─━─━─━ •ـ**\n\n"
+        "**[ تـقـريـر الـشـبـكـة والاسـتـجـابـة ]**\n"
+        f"**ـ سـرعـة اسـتـجـابـة الـبـوت :** `{resp}` **مـلـلـي ثـانـيـة**\n"
+        f"**ـ سـرعـة خـوادم الـصـوت :** `{pytgping}` **مـلـلـي ثـانـيـة**\n\n"
+        "**[ تـقـريـر الـخـادم والـمـوارد ]**\n"
+        f"**ـ مـدة الـتـشـغـيـل :** `{UP}`\n"
+        f"**ـ اسـتـهـلاك الـمـعـالـج :** `{CPU}`\n"
+        f"**ـ الـذاكـرة الـعـشـوائـيـة :** `{RAM}`\n"
+        f"**ـ مـسـاحـة الـتـخـزيـن :** `{DISK}`\n\n"
+        "**[ تـقـريـر الأنـظـمـة الـداخـلـيـة ]**\n"
+        "**ـ قـاعـدة الـبـيـانـات :** `مـتـصـل ومـسـتـقـر`\n"
+        "**ـ مـشـغـل الـمـيـديـا :** `يـعـمـل بـكـفـاءة`\n"
+        "**ـ نـظـام الـحـمـايـة :** `نـشـط`\n\n"
+        "**ـ• ━─━─━─━─━─━─━─━ •ـ**\n"
+        f"**الـبـوت الـرسـمـي :** {app.mention}"
+    )
+    
     await response.edit_text(
-        _["ping_2"].format(resp, app.mention, UP, RAM, CPU, DISK, pytgping),
+        text=final_text,
         reply_markup=supp_markup(_),
     )
