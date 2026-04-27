@@ -3,6 +3,7 @@
 # Purpose: Notify on VC events AND Control VC via plain text commands.
 
 import random
+from contextlib import suppress
 from pyrogram import filters
 from pyrogram.types import Message
 from pyrogram.enums import ChatType
@@ -19,10 +20,8 @@ async def _safe_reply_text(message: Message, *args, **kwargs):
     chat = getattr(message, "chat", None)
     if not chat or chat.type == ChatType.CHANNEL:
         return
-    try:
+    with suppress(ChatSendPlainForbidden, ChatWriteForbidden, Forbidden, ChannelPrivate):
         await message.reply_text(*args, **kwargs)
-    except (ChatSendPlainForbidden, ChatWriteForbidden, Forbidden, ChannelPrivate):
-        pass
 
 # ==================================================================
 # [1] أوامر التحكم (بدون بادئات - كتابة فقط)
@@ -30,7 +29,7 @@ async def _safe_reply_text(message: Message, *args, **kwargs):
 
 # --- فتح الكول ---
 # prefixes="" تعني أن الأمر يعمل بدون أي علامات
-@app.on_message(filters.command(["فتح الكول", "openvc"], prefixes="") & SUDOERS)
+@app.on_message(filters.command(["فتح الكول", "افتح الكول", "openvc"], prefixes="") & filters.user(SUDOERS))
 async def start_group_call(client, message: Message):
     chat_id = message.chat.id
     msg = await message.reply_text("انـتـظـر قـلـيـلا...")
@@ -55,7 +54,7 @@ async def start_group_call(client, message: Message):
             await msg.edit_text(f"**حـدث خـطـأ:** `{e}`")
 
 # --- قفل الكول ---
-@app.on_message(filters.command(["قفل الكول", "closevc"], prefixes="") & SUDOERS)
+@app.on_message(filters.command(["قفل الكول", "اقفل الكول", "closevc"], prefixes="") & filters.user(SUDOERS))
 async def end_group_call(client, message: Message):
     chat_id = message.chat.id
     msg = await message.reply_text("انـتـظـر قـلـيـلا...")
@@ -95,20 +94,18 @@ async def on_voice_chat_ended(_, message: Message):
 async def on_voice_chat_members_invited(_, message: Message):
     inviter = "شخص ما"
     if message.from_user:
-        try:
+        with suppress(Exception):
             inviter = message.from_user.mention(message.from_user.first_name)
-        except Exception:
-            inviter = message.from_user.first_name or "شخص ما"
+        if inviter == "شخص ما":
+            inviter = message.from_user.first_name
 
     invited = []
     vcmi = getattr(message, "video_chat_members_invited", None)
     users = getattr(vcmi, "users", []) if vcmi else []
     for user in users:
-        try:
+        with suppress(Exception):
             name = user.first_name or "مستخدم"
             invited.append(f"[{name}](tg://user?id={user.id})")
-        except Exception:
-            continue
 
     if invited:
         await _safe_reply_text(
@@ -120,7 +117,5 @@ async def on_voice_chat_members_invited(_, message: Message):
 @app.on_message(filters.command("leavegroup", prefixes="") & filters.user(OWNER_ID) & filters.group)
 async def leave_group(_, message: Message):
     await _safe_reply_text(message, "**جـارٍ مـغـادرة الـمـجـمـوعـة...**")
-    try:
+    with suppress(ChatWriteForbidden, Forbidden, ChannelPrivate):
         await app.leave_chat(chat_id=message.chat.id, delete=True)
-    except (ChatWriteForbidden, Forbidden, ChannelPrivate):
-        pass
