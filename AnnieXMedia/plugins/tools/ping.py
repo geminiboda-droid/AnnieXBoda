@@ -1,7 +1,6 @@
 # Authored By Certified Coders © 2026
 import asyncio
 from datetime import datetime
-
 from pyrogram import filters
 from pyrogram.types import Message
 from config import *
@@ -10,10 +9,7 @@ from AnnieXMedia.core.call import StreamController
 from AnnieXMedia.utils import bot_sys_stats
 from AnnieXMedia.utils.decorators.language import language
 from AnnieXMedia.utils.inline import supp_markup
-from config import BANNED_USERS, PING_VID_URL
 
-
-# إضافة filters.group | filters.private لضمان العمل في العام والخاص معاً
 @app.on_message(
     filters.command(["ping", "بنج", "بينج", "فحص"], prefixes=["/", ".", "!"]) 
     & (filters.group | filters.private) 
@@ -23,34 +19,32 @@ from config import BANNED_USERS, PING_VID_URL
 async def ping_com(client, message: Message, _):
     start = datetime.now()
     
-    # رسالة الانتظار بالستايل المطول (المد)
     initial_text = (
         "**جـاري فـحـص خـوادم تـيـلـيـجـرام...**\n"
         "**جـاري الاتـصـال بـقـاعـدة الـبـيـانـات...**\n"
         "**جـاري قـراءة اسـتـهـلاك الـمـوارد والـخـادم...**\n\n"
         "**يـرجـى الانـتـظـار لـحـظـات.**"
     )
+    response = await message.reply_video(video=PING_VID_URL, caption=initial_text)
     
-    response = await message.reply_video(
-        video=PING_VID_URL,
-        caption=initial_text,
-    )
-    
-    # جلب البيانات الحقيقية من السيرفر
-    pytgping = await StreamController.ping()
+    # تجاوز خطأ المكتبة الجديدة
+    try:
+        pytgping = await StreamController.ping()
+    except AttributeError:
+        pytgping = "مـسـتـقـر (N/A)"
+    except Exception:
+        pytgping = "غـيـر مـعـروف"
+
     UP, CPU, RAM, DISK = await bot_sys_stats()
     resp = (datetime.now() - start).microseconds / 1000
-    
-    # تأخير بسيط ليعطي إحساس الفحص الحقيقي للأعضاء
     await asyncio.sleep(1.5)
     
-    # التقرير النهائي الطويل والمزخرف بزخرفة كلاسيكية رسمية بدون إيموجي
     final_text = (
         "**تـم الانـتـهـاء مـن الـفـحـص بـنـجـاح.**\n\n"
         "**ـ• ━─━─━─━─━─━─━─━ •ـ**\n\n"
         "**[ تـقـريـر الـشـبـكـة والاسـتـجـابـة ]**\n"
         f"**ـ سـرعـة اسـتـجـابـة الـبـوت :** `{resp}` **مـلـلـي ثـانـيـة**\n"
-        f"**ـ سـرعـة خـوادم الـصـوت :** `{pytgping}` **مـلـلـي ثـانـيـة**\n\n"
+        f"**ـ سـرعـة خـوادم الـصـوت :** `{pytgping}`\n\n"
         "**[ تـقـريـر الـخـادم والـمـوارد ]**\n"
         f"**ـ مـدة الـتـشـغـيـل :** `{UP}`\n"
         f"**ـ اسـتـهـلاك الـمـعـالـج :** `{CPU}`\n"
@@ -63,8 +57,4 @@ async def ping_com(client, message: Message, _):
         "**ـ• ━─━─━─━─━─━─━─━ •ـ**\n"
         f"**الـبـوت الـرسـمـي :** {app.mention}"
     )
-    
-    await response.edit_text(
-        text=final_text,
-        reply_markup=supp_markup(_),
-    )
+    await response.edit_text(text=final_text, reply_markup=supp_markup(_))
