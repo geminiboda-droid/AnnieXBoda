@@ -159,7 +159,7 @@ AYUV = [
 ]
 
 # ── Runtime structures ─────────────────────────────────────────────────────────
-BANNED_USERS = set()
+BANNED_USERS = filters.user()
 adminlist = {}
 lyrical = {}
 autoclean = []
