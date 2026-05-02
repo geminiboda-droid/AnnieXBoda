@@ -32,7 +32,7 @@ class YouTubeAPI:
             "remote_components": ["ejs:github"],
             "extractor_args": {
             "youtube": {
-                    "client": ["ios"] 
+                    "client": ["android_vr"] 
                 }
             }
         }
