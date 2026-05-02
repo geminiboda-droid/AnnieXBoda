@@ -22,6 +22,7 @@ class YouTubeAPI:
             r"(youtube\.com/(watch\?v=|shorts/|playlist\?list=)|youtu\.be/)"
             r"([A-Za-z0-9_-]{11}|PL[A-Za-z0-9_-]+)([&?][^\s]*)?"
         )
+        # الإعدادات الذهبية: دمج السرعة (iOS) مع الاستقرار (JavaScript)
         self.base_opts = {
             "format": "bestaudio/best",
             "quiet": True,
@@ -29,9 +30,11 @@ class YouTubeAPI:
             "simulate": True,
             "force_ipv4": True,
             "source_address": "0.0.0.0",
+            "js_runtimes": {"node": {}},
+            "remote_components": ["ejs:github"],
             "extractor_args": {
                 "youtube": {
-                    "client": ["android_vr"] 
+                    "client": ["ios"] 
                 }
             }
         }
@@ -59,6 +62,7 @@ class YouTubeAPI:
         return None
 
     async def _extract_native(self, query: str, opts: dict) -> dict:
+        """دالة الاستخراج الخام باستخدام Threads عشان السرعة"""
         def extract():
             with YoutubeDL(opts) as ydl:
                 return ydl.extract_info(query, download=False)
@@ -101,6 +105,7 @@ class YouTubeAPI:
             return {"title": "Unknown", "duration_min": "0:00", "thumb": "", "vidid": vid, "link": link}, vid
 
     async def details(self, link: str, videoid: str | bool | None = None) -> tuple[str, str | None, int, str, str]:
+        """سحب تفاصيل الفيديو في خبطة واحدة مع الرابط المباشر لو أمكن"""
         opts = self.base_opts.copy()
         try:
             info = await self._extract_native(link, opts)
@@ -109,6 +114,7 @@ class YouTubeAPI:
             thumbnail = info.get("thumbnail", "")
             vid_id = info.get("id", "")
             
+            # تحويل الثواني لشكل 00:00
             duration_min = time.strftime('%M:%S', time.gmtime(duration_sec))
             
             return title, duration_min, duration_sec, thumbnail, vid_id
@@ -117,7 +123,7 @@ class YouTubeAPI:
             return "Unknown", "0:00", 0, "", ""
 
     async def download(self, link: str, mystic: Any, video: str | bool | None = None, videoid: str | bool | None = None, **kwargs) -> str | None:
-        """جلب الرابط المباشر للتشغيل (نفس وظيفة get_direct_link للقديم)"""
+        """جلب الرابط المباشر للتشغيل"""
         vid = str(videoid) if videoid and str(videoid) not in ["True", "False"] else ""
         if not vid and "v=" in link:
             with suppress(Exception):
@@ -140,6 +146,7 @@ class YouTubeAPI:
         return await self.download(link, None, video=not prefer_audio)
 
     async def search(self, query: str, limit: int = 10) -> list[dict[str, str]]:
+        """البحث عن فيديوهات (لأمر البحث فقط)"""
         try:
             search_obj = VideosSearch(query, limit=limit)
             result = await search_obj.next()
@@ -158,6 +165,7 @@ class YouTubeAPI:
             return []
 
     async def download_thumb(self, thumbnail_url: str) -> str | None:
+        """تحميل صورة الفيديو لعرضها في المكالمة"""
         if not thumbnail_url:
             return None
         os.makedirs("downloads", exist_ok=True)
@@ -174,6 +182,7 @@ class YouTubeAPI:
         return None
 
     async def get_playlist(self, url: str) -> list[str]:
+        """سحب روابط قائمة تشغيل كاملة"""
         opts = {"extract_flat": True, "quiet": True, "skip_download": True}
         try:
             info = await self._extract_native(url, opts)
