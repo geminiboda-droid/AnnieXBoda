@@ -1,4 +1,3 @@
-اي بق ال مبطئ الملف د
 import asyncio
 import re
 import logging
