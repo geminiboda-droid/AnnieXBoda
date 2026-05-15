@@ -1,8 +1,7 @@
-﻿# Authored By Certified Coders © 2025
+# Authored By Certified Coders © 2026
 import asyncio
-
 import speedtest
-from pyrogram import filters
+from pyrogram import filters, Client
 from pyrogram.types import Message
 
 from AnnieXMedia import app
@@ -10,8 +9,12 @@ from AnnieXMedia.misc import SUDOERS
 from AnnieXMedia.utils.decorators.language import language
 
 
-def run_speedtest():
-    test = speedtest.Speedtest()
+def run_speedtest() -> dict:
+    """
+    تنفيذ فحص السرعة. في بايثون 3.13 (Free-Threading)، 
+    هذا الكود سيعمل بالتوازي الحقيقي ولن يعيق البوت.
+    """
+    test = speedtest.Speedtest(secure=True)
     test.get_best_server()
     test.download()
     test.upload()
@@ -21,17 +24,17 @@ def run_speedtest():
 
 @app.on_message(filters.command(["speedtest", "spt"]) & SUDOERS)
 @language
-async def speedtest_function(_, message: Message, lang):
+async def speedtest_function(client: Client, message: Message, lang: dict) -> None:
     try:
-        m = await message.reply_text(lang["server_11"])
+        m: Message = await message.reply_text(lang["server_11"])
         await m.edit_text(lang["server_12"])
 
-        loop = asyncio.get_event_loop()
-        result = await loop.run_in_executor(None, run_speedtest)
+        # الطريقة القياسية والحديثة في بايثون 3.13+ لتشغيل الدوال المانعة (Blocking)
+        result: dict = await asyncio.to_thread(run_speedtest)
 
-        await m.edit_text(lang["server_13"])  #
+        await m.edit_text(lang["server_13"])
 
-        output = lang["server_15"].format(
+        output: str = lang["server_15"].format(
             result["client"]["isp"],
             result["client"]["country"],
             result["server"]["name"],
@@ -47,4 +50,6 @@ async def speedtest_function(_, message: Message, lang):
         await m.delete()
 
     except Exception as e:
-        await message.reply_text(f"<code>{e}</code>")
+        # استخدام add_note (ميزة حديثة في بايثون) لإضافة سياق للخطأ في السجلات إن احتجتها
+        e.add_note("Speedtest execution failed due to network or timeout issues.")
+        await message.reply_text(f"❌ <b>حدث خطأ:</b>\n<code>{e}</code>")
