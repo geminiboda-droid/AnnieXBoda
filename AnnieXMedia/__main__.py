@@ -1,6 +1,17 @@
 import sys
 import os
 import asyncio
+import logging
+
+# 🛠️ إضافة المطور: تشتغل فقط عند الطلب من الكونسول
+# لو متغير البيئة "DEBUG_NTG" قيمته "1"، هيطبع تفاصيل ntgcalls
+if os.environ.get("DEBUG_NTG") == "1":
+    logging.basicConfig(
+        format="[%(levelname) 4s/%(asctime)s] %(name)s: %(message)s",
+    )
+    logging.getLogger('ntgcalls').setLevel(logging.DEBUG)
+    print("🚨 تم تفعيل وضع الـ DEBUG لمكتبة ntgcalls بناءً على طلبك من الكونسول 🚨")
+
 
 # 🚀 الضربة الاستباقية: إنشاء Event Loop وتثبيتها قبل استدعاء أي ملف!
 # ده بيجبر MongoDB و Pyrogram وكل المكتبات إنها تستخدم نفس الـ Loop دي من البداية.
