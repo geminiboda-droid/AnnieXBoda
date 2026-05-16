@@ -3,7 +3,6 @@ import re
 import logging
 import os
 import time
-from contextlib import suppress
 from typing import Any
 
 import aiohttp
@@ -25,10 +24,11 @@ class YouTubeAPI:
         self.base_opts = {
             "quiet": True,
             "no_warnings": True,
-            "cookiefile": None,
+            "cookiefile": None, # ضع مسار ملف الكوكيز هنا إذا لزم الأمر
             "force_ipv4": True,
             "source_address": "0.0.0.0",
-            "js_runtimes": {"node": {}},
+            "concurrent_fragment_downloads": 10, # عدد آمن لتسريع التحميل بدون حظر
+            "js_runtimes": {"deno": {}}, # تفعيل دينو كبيئة التشغيل الافتراضية الأسرع
             "remote_components": ["ejs:github"],
             "extractor_args": {
                 "youtube": {
@@ -51,11 +51,13 @@ class YouTubeAPI:
             text = getattr(msg, "text", None) or getattr(msg, "caption", None) or ""
             entities = (getattr(msg, "entities", None) or []) + (getattr(msg, "caption_entities", None) or [])
             for ent in entities:
-                with suppress(Exception):
+                try:
                     if ent.type == enums.MessageEntityType.URL:
                         return text[ent.offset : ent.offset + ent.length].split("&si")[0]
                     if ent.url:
                         return ent.url.split("&si")[0]
+                except Exception as e:
+                    log.warning(f"Error parsing entity: {e}")
         return None
 
     async def _extract_native(self, query: str, opts: dict) -> dict:
@@ -67,8 +69,10 @@ class YouTubeAPI:
     async def track(self, link: str, videoid: str | bool | None = None) -> tuple[dict[str, Any], str]:
         vid = str(videoid) if videoid and str(videoid) not in ["True", "False"] else ""
         if not vid and "v=" in link:
-            with suppress(Exception):
+            try:
                 vid = link.split("v=")[1].split("&")[0]
+            except IndexError:
+                pass
         
         query = f"https://youtube.com/watch?v={vid}" if vid else link
 
@@ -104,9 +108,11 @@ class YouTubeAPI:
         dur = data.get("duration_min", "0:00")
         
         secs = 0
-        with suppress(Exception):
+        try:
             parts = [int(p) for p in str(dur).split(":")]
             secs = sum(p * (60 ** i) for i, p in enumerate(reversed(parts)))
+        except Exception as e:
+            log.error(f"Duration parsing error: {e}")
             
         return data["title"], dur, secs, data["thumb"], str(vid)
 
@@ -133,11 +139,17 @@ class YouTubeAPI:
     async def download(self, link: str, mystic: Any, video: str | bool | None = None, videoid: str | bool | None = None, **kwargs) -> str | None:
         vid = str(videoid) if videoid and str(videoid) not in ["True", "False"] else ""
         if not vid and "v=" in link:
-            with suppress(Exception):
+            try:
                 vid = link.split("v=")[1].split("&")[0]
+            except IndexError:
+                pass
         
         target_url = f"https://www.youtube.com/watch?v={vid}" if vid else link
-        media_format = "b" if video else "ba/b"
+        
+        # اختيار الجودة الأفضل لبث تيليجرام
+        # الصوت: الأولوية لـ m4a لتقليل استهلاك المعالج وتجنب الـ Transcoding
+        # الفيديو: دمج أفضل فيديو بحد أقصى 1080p مع الصوت لتجنب مشاكل التشغيل
+        media_format = "best[height<=1080]/best" if video else "bestaudio[ext=m4a]/bestaudio[ext=webm]/bestaudio/best"
         
         opts = self.base_opts.copy()
         opts["format"] = media_format
@@ -172,13 +184,15 @@ class YouTubeAPI:
             return None
         os.makedirs("downloads", exist_ok=True)
         path = f"downloads/thumb_{int(time.time())}.jpg"
-        with suppress(Exception):
+        try:
             async with aiohttp.ClientSession() as session:
                 async with session.get(thumbnail_url) as resp:
                     if resp.status == 200:
                         async with aiofiles.open(path, "wb") as f:
                             await f.write(await resp.read())
                         return path
+        except Exception as e:
+            log.error(f"Thumbnail download error: {e}")
         return None
 
     async def video(self, link: str, is_live: bool = False) -> tuple[int, str]:
