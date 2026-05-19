@@ -25,9 +25,9 @@ from AnnieXMedia.utils.inline.start import private_panel, start_panel
 from config import BANNED_USERS
 from strings import get_string
 
-# استخدام getattr لتجنب الأخطاء لو المتغير مش موجود
+# استخدام getattr لتجنب الأخطاء لو المتغير مش موجود في الكونفج
 START_IMG_URL = getattr(config, "START_IMG_URL", "https://files.catbox.moe/ompn1o.jpg")
-LOGGER_ID = getattr(config, "LOGGER_ID", config.OWNER_ID) # Fallback to Owner ID if Logger ID is 0
+LOGGER_ID = getattr(config, "LOGGER_ID", config.OWNER_ID)
 
 @app.on_message(filters.command(["start"]) & filters.private & ~BANNED_USERS)
 @LanguageStart
@@ -42,15 +42,12 @@ async def start_pm(client, message: Message, _):
         name = message.text.split(None, 1)[1]
         if name[0:4] == "help":
             keyboard = help_pannel(_)
-            try:
-                await message.reply_sticker("CAACAgUAAyEFAATXFFgrAAIDymlfzq3ZMbEh_bgdkjEhg2QMBib-AAILFQAC-vEZVMBmWHCQ-sJuHgQ")
-            except:
-                pass
             return await message.reply_photo(
                 photo=START_IMG_URL,
                 caption=_["help_1"].format(config.SUPPORT_CHAT),
                 reply_markup=keyboard,
             )
+            
         if name[0:3] == "sud":
             await sudoers_list(client=client, message=message, _=_)
             if await is_on_off(2):
@@ -60,6 +57,7 @@ async def start_pm(client, message: Message, _):
                         text=f"{message.from_user.mention} قــام بـبـدء الـبـوت لـمـعـرفـة <b>قـائـمـة الـمـطـوريـن</b>.\n\n<b>آيــدي الـشـخـص :</b> <code>{message.from_user.id}</code>\n<b>الـيـوزر :</b> @{message.from_user.username}",
                     )
             return
+            
         if name[0:3] == "inf":
             m = await message.reply_text("🔎")
             query = (str(name)).replace("info_", "", 1)
@@ -69,6 +67,7 @@ async def start_pm(client, message: Message, _):
                 return VideosSearch(query, limit=1).result()
 
             try:
+                # استخدام asyncio.to_thread ممتاز جداً ومتوافق مع بايثون 3.13 لمنع حظر الـ Event Loop
                 results = await asyncio.to_thread(_search)
                 result = results["result"][0]
                 
@@ -111,67 +110,7 @@ async def start_pm(client, message: Message, _):
     else:
         out = private_panel(_)
         
-        # --- 1. الصلاة على النبي ---
-        prayers = await message.reply_text("صـلـي عـلـي الـنـبـي وتـبـسـم 🤍🌿.")
-        await asyncio.sleep(0.5)
-        try:
-            await prayers.delete()
-        except:
-            pass
-
-        # --- 2. الترحيب المتحرك ---
-        lol = await message.reply_text("نــورت يـا غــالـي ꨄ︎ {}.. 🤍".format(message.from_user.mention))
-        await asyncio.sleep(0.1)
-        await lol.edit_text("نــورت يـا غــالـي ꨄ︎ {}.. ☔".format(message.from_user.mention))
-        await asyncio.sleep(0.1)
-        await lol.edit_text("نــورت يـا غــالـي ꨄ︎ {}.. 🧚".format(message.from_user.mention))
-        await asyncio.sleep(0.1)
-        await lol.edit_text("نــورت يـا غــالـي ꨄ︎ {}.. 💞".format(message.from_user.mention))
-        await asyncio.sleep(0.1)
-        await lol.edit_text("نــورت يـا غــالـي ꨄ︎ {}.. 💕".format(message.from_user.mention))
-        await asyncio.sleep(0.1)
-        await lol.edit_text("نــورت يـا غــالـي ꨄ︎ {}.. 💜".format(message.from_user.mention))
-        
-        try:
-            await lol.delete()
-        except:
-            pass
-        
-        # --- 3. جاري التشغيل ---
-        lols = await message.reply_text("🤍 جـ")
-        await asyncio.sleep(0.1)
-        await lols.edit_text("🤍 جــ")        
-        await asyncio.sleep(0.1)
-        await lols.edit_text("🤍 جــا")
-        await asyncio.sleep(0.1)
-        await lols.edit_text("🤍 جــار")
-        await asyncio.sleep(0.1)
-        await lols.edit_text("🤍 جــاري")
-        await asyncio.sleep(0.1)
-        await lols.edit_text("🤍 جــاري الـ")
-        await asyncio.sleep(0.1)
-        await lols.edit_text("🤍 جــاري التـ")
-        await asyncio.sleep(0.1)
-        await lols.edit_text("🤍 جــاري التشـ")
-        await asyncio.sleep(0.1)
-        await lols.edit_text("🤍 جــاري التشغيـ")
-        await asyncio.sleep(0.1)
-        await lols.edit_text("🤍 جــاري التشغيل")
-        await asyncio.sleep(0.1)
-        await lols.edit_text("🤍 جــاري التشغيل .")
-        await asyncio.sleep(0.1)
-        await lols.edit_text("🤍 جــاري التشغيل . .")
-        await asyncio.sleep(0.1)
-        await lols.edit_text("🤍 جــاري التشغيل . . .")
-
-        # --- 4. الاستيكر ---
-        m = None
-        try:
-            m = await message.reply_sticker("CAACAgUAAyEFAATXFFgrAAIDymlfzq3ZMbEh_bgdkjEhg2QMBib-AAILFQAC-vEZVMBmWHCQ-sJuHgQ")
-        except:
-            pass
-        
-        # --- 5. أولوية الصورة ---
+        # أولوية الصورة (صورة البوت، ثم صورة المستخدم، ثم الصورة الافتراضية)
         if client.me.photo:
             chat_photo = client.me.photo.big_file_id
         elif message.from_user.photo:
@@ -179,18 +118,7 @@ async def start_pm(client, message: Message, _):
         else:
             chat_photo = START_IMG_URL
         
-        # --- 6. التنظيف والارسال النهائي ---
-        if lols:
-            try:
-                await lols.delete()
-            except:
-                pass
-        if m:
-            try:
-                await m.delete()
-            except:
-                pass
-        
+        # الإرسال الفوري بدون أي رسائل تحميل أو انيميشن
         try:
             await message.reply_photo(
                 photo=chat_photo,
@@ -198,13 +126,14 @@ async def start_pm(client, message: Message, _):
                 reply_markup=InlineKeyboardMarkup(out),
             )
         except Exception as e:
+            # Fallback في حال فشل إرسال صورة الحساب
             await message.reply_photo(
                 photo=START_IMG_URL,
                 caption=_["start_2"].format(message.from_user.mention, app.mention),
                 reply_markup=InlineKeyboardMarkup(out),
             )
 
-        # اللوج (معدل ليتوافق مع الكونفج بتاعك)
+        # إرسال إشعار الدخول للمطور (اللوج)
         if getattr(config, "LOG", True): 
             if LOGGER_ID != 0:
                 sender_id = message.from_user.id
@@ -228,7 +157,6 @@ async def start_gp(client, message: Message, _):
         reply_markup=InlineKeyboardMarkup(out),
     )
     return await add_served_chat(message.chat.id)
-
 
 @app.on_message(filters.new_chat_members, group=-1)
 async def welcome(client, message: Message):
