@@ -1,42 +1,27 @@
 # Authored By Certified Coders © 2026
 # Security Module: Intelligence Helpers
-# Logic: Local AI Media Scanning (ONNX), Permissions, & Concurrent Deletion
+# Logic: Local AI Media Scanning (NudeNet), Permissions, & Concurrent Deletion
 
 import asyncio
 import os
-import urllib.request
 import cv2
-import numpy as np
-import onnxruntime as ort
 from pyrogram.enums import ChatMemberStatus
 from AnnieXMedia import app
 from AnnieXMedia.misc import SUDOERS
 
-# --- إعدادات المحرك الأمني ---
-MODEL_PATH = "nsfw_detector.onnx"
-MODEL_URL = "https://github.com/GantMan/nsfw_model/releases/download/1.2.0/nsfw_detector.onnx"
+# استدعاء مكتبة الذكاء الاصطناعي الحديثة
+from nudenet import NudeDetector
 
-# تحميل النموذج تلقائياً إذا لم يكن موجوداً
-if not os.path.exists(MODEL_PATH):
-    print("Downloading NSFW Detection Model...")
-    try:
-        urllib.request.urlretrieve(MODEL_URL, MODEL_PATH)
-        print("Model downloaded successfully.")
-    except Exception as e:
-        print(f"Model download failed: {e}")
+# تهيئة المحرك (سيقوم بتحميل الموديل من مصادره الموثوقة تلقائياً في أول تشغيل فقط)
+detector = NudeDetector()
 
-# إعدادات جلسة ONNX لاستغلال 8 أنوية
-sess_options = ort.SessionOptions()
-sess_options.intra_op_num_threads = 8
-sess_options.execution_mode = ort.ExecutionMode.ORT_PARALLEL
-sess_options.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
-
-# تحميل الجلسة
-try:
-    session = ort.InferenceSession(MODEL_PATH, sess_options=sess_options, providers=['CPUExecutionProvider'])
-except Exception as e:
-    print(f"Error initializing ONNX session: {e}")
-    session = None
+# الأجزاء التي يعتبرها البوت إباحية صريحة (تمنع الحذف الخاطئ للصور العادية)
+UNSAFE_LABELS = [
+    "EXPOSED_GENITALIA",
+    "EXPOSED_ANUS",
+    "EXPOSED_BREAST_F",
+    "EXPOSED_BUTTOCKS"
+]
 
 async def has_permission(chat_id: int, user_id: int):
     """التحقق من صلاحيات المستخدم"""
@@ -51,30 +36,23 @@ async def has_permission(chat_id: int, user_id: int):
     return False
 
 def _run_local_scan(image_path: str) -> bool:
-    """معالجة وفحص الصورة محلياً باستخدام النموذج"""
-    if session is None:
-        return False
+    """معالجة وفحص الصورة محلياً باستخدام NudeNet"""
     try:
-        img = cv2.imread(image_path)
-        if img is None: return False
+        # المكتبة تقوم بضبط الأبعاد والفحص واستخراج النتائج تلقائياً
+        detections = detector.detect(image_path)
         
-        # تجهيز الصورة (تغيير الأبعاد والتطبيع)
-        img = cv2.resize(img, (224, 224))
-        img = img.astype(np.float32) / 255.0
-        img = np.expand_dims(img, axis=0)
-        
-        input_name = session.get_inputs()[0].name
-        results = session.run(None, {input_name: img})
-        
-        # التنبؤ (القيمة الثانية في المصفوفة هي غالباً نسبة الإباحية)
-        score = results[0][0][1] 
-        return score > 0.7
+        for detection in detections:
+            # إذا وجدت المكتبة أي جزء محظور بنسبة تأكد أعلى من 65%، تعتبر الصورة إباحية
+            if detection['class'] in UNSAFE_LABELS and detection['score'] > 0.65:
+                return True
+                
+        return False
     except Exception as e:
         print(f"Local Scan Error: {e}")
         return False
 
-async def check_porn_local(file_path: str):
-    """تغليف دالة الفحص المحلى لتعمل بشكل غير متزامن"""
+async def check_porn_api(file_path: str):
+    """تغليف دالة الفحص المحلى لتعمل بشكل غير متزامن مع Pyrogram"""
     return await asyncio.to_thread(_run_local_scan, file_path)
 
 async def scan_video_frames(video_path: str):
@@ -85,16 +63,17 @@ async def scan_video_frames(video_path: str):
         total_frames = int(cam.get(cv2.CAP_PROP_FRAME_COUNT))
         
         if total_frames > 0:
+            # فحص ثلاث لقطات مختلفة من الفيديو
             check_points = [0.1, 0.5, 0.9]
             for point in check_points:
                 frame_id = int(total_frames * point)
                 cam.set(cv2.CAP_PROP_POS_FRAMES, frame_id)
                 ret, frame = cam.read()
                 if ret:
-                    temp_frame = f"{video_path}_check.jpg"
+                    temp_frame = f"{video_path}_check_{int(point*100)}.jpg"
                     cv2.imwrite(temp_frame, frame)
                     
-                    if await check_porn_local(temp_frame):
+                    if await check_porn_api(temp_frame):
                         is_detected = True
                         if os.path.exists(temp_frame): os.remove(temp_frame)
                         break 
