@@ -1,6 +1,6 @@
 # Authored By Certified Coders © 2026
 # Security Module: Admin Commands Interface
-# Logic: Command handling, Locking system, & Group management
+# Logic: Dynamic Multi-Level Inline Settings & Group management
 
 import asyncio
 from pyrogram import filters, enums
@@ -14,12 +14,11 @@ from AnnieXMedia.misc import SUDOERS
 from config import BANNED_USERS
 from .database import (
     update_lock, get_locks, set_warn_limit_db, 
-    update_user_warns
+    update_user_warns, get_lock_settings, set_lock_settings # تم اضافة دوال جديدة لقاعدة البيانات
 )
 from .helpers import has_permission, force_delete
 
 # --- خرائط البيانات والترجمة ---
-
 LOCK_MAP = {
     "الروابط": "links", "المعرفات": "usernames", "التاك": "hashtags",
     "الشارحه": "slashes", "التثبيت": "pin", "المتحركه": "animations",
@@ -27,22 +26,11 @@ LOCK_MAP = {
     "الملفات": "docs", "البوتات": "bots", "التكرار": "flood",
     "الكلايش": "long_msgs", "الانلاين": "inline", "الفيديو": "videos",
     "البصمات": "voice", "السيلفي": "video_notes", "الماركدوان": "markdown",
-    "التوجيه": "forward", "الاغاني": "audio", "الصوت": "voice",
-    "الجهات": "contacts", "الاشعارات": "service", "السب": "porn_text",
-    "الاباحي": "porn_media"
+    "التوجيه": "forward", "الاغاني": "audio", "الجهات": "contacts", 
+    "الاشعارات": "service", "السب": "porn_text", "الاباحي": "porn_media"
 }
 
-PRETTY_MAP = {
-    "الروابط": "الروابط", "المعرفات": "المعرفات", "التاك": "التاك",
-    "الشارحه": "الشارحة", "التثبيت": "التثبيت", "المتحركه": "المتحركة",
-    "الشات": "الشات", "الصور": "الصور", "الملصقات": "الملصقات",
-    "الملفات": "الملفات", "البوتات": "البوتات", "التكرار": "التكرار",
-    "الكلايش": "الكلايش", "الانلاين": "الانلاين", "الفيديو": "الفيديو",
-    "البصمات": "البصمات", "السيلفي": "السيلفي", "الماركدوان": "الماركدوان",
-    "التوجيه": "التوجيه", "الاغاني": "الاغاني", "الصوت": "الصوت",
-    "الجهات": "الجهات", "الاشعارات": "الاشعارات", "السب": "السب",
-    "الاباحي": "الاباحي"
-}
+PRETTY_MAP = {v: k for k, v in LOCK_MAP.items()}
 
 # ==========================================
 # أوامر الإدارة المباشرة (سماح، كتم، فك)
@@ -51,60 +39,48 @@ PRETTY_MAP = {
 @app.on_message(filters.regex(r"^(سماح|شد سماح|كتم|شد ميوت|فك الكتم)$") & filters.group & ~BANNED_USERS)
 async def admin_cmds_handler(_, message: Message):
     if not await has_permission(message.chat.id, message.from_user.id): 
-        return await message.reply("هذا الامر مخصص للمشرفين فقط.")
+        return await message.reply("هذا الأمر مخصص للمشرفين فقط.")
         
     cmd = message.text
+    if not message.reply_to_message:
+        return await message.reply("يجب الرد على رسالة المستخدم لتنفيذ هذا الأمر.")
     
-    # تحديد المستخدم المستهدف
-    if message.reply_to_message:
-        target_user = message.reply_to_message.from_user
-    else:
-        return await message.reply("يجب الرد على رسالة المستخدم لتنفيذ هذا الامر.")
-    
-    u_id = target_user.id
-    mention = target_user.mention
+    target_user = message.reply_to_message.from_user
+    u_id, mention = target_user.id, target_user.mention
     
     try:
         if cmd == "سماح":
             await app.promote_chat_member(message.chat.id, u_id, privileges=ChatPrivileges(can_manage_chat=True, can_delete_messages=True, can_restrict_members=True))
-            await message.reply(f"تم منح صلاحيات الادمن لـ {mention}")
+            await message.reply(f"تم منح صلاحيات الأدمن لـ {mention}")
         elif cmd == "شد سماح":
             await app.promote_chat_member(message.chat.id, u_id, privileges=ChatPrivileges(can_manage_chat=False))
-            await message.reply(f"تم سحب صلاحيات الادمن من {mention}")
+            await message.reply(f"تم سحب صلاحيات الأدمن من {mention}")
         elif cmd == "كتم":
             await app.restrict_chat_member(message.chat.id, u_id, ChatPermissions(can_send_messages=False))
             await message.reply(f"تم كتم المستخدم {mention}")
         elif cmd in ["شد ميوت", "فك الكتم"]:
             await app.restrict_chat_member(message.chat.id, u_id, ChatPermissions(can_send_messages=True))
             await message.reply(f"تم فك الكتم عن {mention}")
-    except Exception:
-        await message.reply("حدث خطأ، تأكد من صلاحيات البوت.")
-
-@app.on_message(filters.regex(r"^(تحذيرات )(\d+)$") & filters.group & ~BANNED_USERS)
-async def set_warns_cmd(_, message: Message):
-    if not await has_permission(message.chat.id, message.from_user.id): 
-        return await message.reply("هذا الامر مخصص للمشرفين فقط.")
-    
-    limit = int(message.matches[0].group(2))
-    await set_warn_limit_db(message.chat.id, limit)
-    await message.reply(f"تم تحديد حد التحذيرات بـ {limit} تحذير.")
+    except Exception as e:
+        await message.reply("حدث خطأ، تأكد من أن البوت مشرف ولديه الصلاحيات الكافية.")
 
 # ==========================================
-# أوامر التنظيف والتدمير
+# أوامر التنظيف والتدمير (محسنة بالـ Concurrency)
 # ==========================================
 
 @app.on_message(filters.regex(r"^(مسح|تنظيف)($| )") & filters.group & ~BANNED_USERS)
 async def destructive_clear(_, message: Message):
     if not await has_permission(message.chat.id, message.from_user.id): 
-        return await message.reply("هذا الامر مخصص للمشرفين فقط.")
+        return await message.reply("هذا الأمر مخصص للمشرفين فقط.")
         
     if message.reply_to_message:  
         start_id = message.reply_to_message.id
         end_id = message.id  
         msg_ids = list(range(start_id, end_id + 1))  
-        for i in range(0, len(msg_ids), 100):  
-            try: await app.delete_messages(message.chat.id, msg_ids[i:i+100])  
-            except: continue  
+        
+        # استخدام التوازي (Gather) للحذف اللحظي (ميزة Python 3+ القوية)
+        chunks = [msg_ids[i:i+100] for i in range(0, len(msg_ids), 100)]
+        await asyncio.gather(*[app.delete_messages(message.chat.id, chunk) for chunk in chunks], return_exceptions=True)
         deleted = len(msg_ids)  
     else:
         parts = message.text.split()
@@ -115,95 +91,139 @@ async def destructive_clear(_, message: Message):
     await asyncio.sleep(3)
     await temp.delete()
 
-@app.on_message(filters.regex(r"^(تدمير ذاتي)$") & filters.group & ~BANNED_USERS)
-async def self_destruct(_, message: Message):
-    if not await has_permission(message.chat.id, message.from_user.id): 
-        return await message.reply("هذا الامر مخصص للمشرفين فقط.")
-        
-    kb = InlineKeyboardMarkup([[InlineKeyboardButton("تـدمـيـر 500 رسـالـة", callback_data="total_destruction")]])
-    await message.reply("هل انت متأكد من بدء عملية التدمير الذاتي لآخر 500 رسالة؟", reply_markup=kb)
-
 # ==========================================
-# أوامر القفل والفتح (Locking Logic)
+# نظام اللوحة التفاعلية الديناميكية (Dynamic UI)
 # ==========================================
 
-@app.on_message(filters.regex(r"^(قفل |فتح )(.*)$") & filters.group & ~BANNED_USERS)
-async def toggle_lock_cmd(_, message: Message):
-    if not await has_permission(message.chat.id, message.from_user.id): 
-        return await message.reply("هذا الامر مخصص للمشرفين فقط.")
-    
-    action = message.matches[0].group(1).strip()
-    item = message.matches[0].group(2).strip()
-    
-    key = LOCK_MAP.get(item)
-    if not key: return
-    
-    current_locks = await get_locks(message.chat.id)
-
-    if action == "قفل":
-        if key in current_locks:
-             return await message.reply("هذا الامر مقفل بالفعل.")
-        await update_lock(message.chat.id, key, True)
-        await message.reply(f"تم قفل {PRETTY_MAP[item]} بنجاح.")
-    else: 
-        if key not in current_locks:
-             return await message.reply("هذا الامر مفتوح بالفعل.")
-        await update_lock(message.chat.id, key, False)
-        await message.reply(f"تم فتح {PRETTY_MAP[item]} بنجاح.")
-
-# ==========================================
-# لوحة الإعدادات التفاعلية
-# ==========================================
-
-async def get_settings_kb(chat_id):
+async def get_main_panel(chat_id):
+    """اللوحة الرئيسية للأقفال"""
     kb = []
-    active = await get_locks(chat_id)
-    items = list(LOCK_MAP.items())
+    # هنا نفترض أن get_lock_settings ترجع قاموس فيه إعدادات القفل لكل عنصر
+    settings = await get_lock_settings(chat_id) 
+    
+    items = list(PRETTY_MAP.keys())
     for i in range(0, len(items), 2):
         row = []
-        n1, k1 = items[i]; s1 = "مقفل" if k1 in active else "مفتوح"
-        row.append(InlineKeyboardButton(f"{n1}: {s1}", callback_data=f"trg_{k1}"))
-        if i + 1 < len(items):
-            n2, k2 = items[i+1]; s2 = "مقفل" if k2 in active else "مفتوح"
-            row.append(InlineKeyboardButton(f"{n2}: {s2}", callback_data=f"trg_{k2}"))
+        for j in range(2):
+            if i + j < len(items):
+                k = items[i + j]
+                n = PRETTY_MAP[k]
+                status = "🔒" if k in settings else "🔓"
+                row.append(InlineKeyboardButton(f"{n} {status}", callback_data=f"sec_cfg_{k}"))
         kb.append(row)
-    kb.append([InlineKeyboardButton("اغلاق اللوحة", callback_data="close_sec")])
+    kb.append([InlineKeyboardButton("إغلاق اللوحة", callback_data="close_sec")])
     return InlineKeyboardMarkup(kb)
+
+def get_action_panel(key):
+    """لوحة تحديد نوع العقوبة"""
+    name = PRETTY_MAP.get(key, key)
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("حظر (Ban)", callback_data=f"sec_act_{key}_b"), InlineKeyboardButton("طرد (Kick)", callback_data=f"sec_act_{key}_k")],
+        [InlineKeyboardButton("كتم (Mute)", callback_data=f"sec_act_{key}_m")],
+        [InlineKeyboardButton("فتح القفل", callback_data=f"sec_unl_{key}")],
+        [InlineKeyboardButton("رجوع", callback_data="sec_back_main")]
+    ])
+
+def get_warn_panel(key, action):
+    """لوحة تحديد عدد التحذيرات"""
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("بدون تحذير (مباشر)", callback_data=f"sec_wrn_{key}_{action}_0")],
+        [InlineKeyboardButton("1", callback_data=f"sec_wrn_{key}_{action}_1"), InlineKeyboardButton("2", callback_data=f"sec_wrn_{key}_{action}_2"), InlineKeyboardButton("3", callback_data=f"sec_wrn_{key}_{action}_3")],
+        [InlineKeyboardButton("4", callback_data=f"sec_wrn_{key}_{action}_4"), InlineKeyboardButton("5", callback_data=f"sec_wrn_{key}_{action}_5")],
+        [InlineKeyboardButton("رجوع", callback_data=f"sec_cfg_{key}")]
+    ])
+
+def get_time_panel(key, action, warns, hours):
+    """لوحة تحديد مدة الكتم الخاصة"""
+    return InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("➕ ساعة", callback_data=f"sec_tim_{key}_{action}_{warns}_{hours+1}"),
+            InlineKeyboardButton(f"{hours} ساعة", callback_data="ignore_cb"),
+            InlineKeyboardButton("➖ ساعة", callback_data=f"sec_tim_{key}_{action}_{warns}_{max(1, hours-1)}")
+        ],
+        [InlineKeyboardButton("♾️ دائماً (أبدي)", callback_data=f"sec_sav_{key}_{action}_{warns}_0")],
+        [InlineKeyboardButton("✅ حفظ الإعدادات", callback_data=f"sec_sav_{key}_{action}_{warns}_{hours}")],
+        [InlineKeyboardButton("🔙 رجوع", callback_data=f"sec_act_{key}_{action}")]
+    ])
 
 @app.on_message(filters.regex(r"^(الاعدادات|locks)$") & filters.group & ~BANNED_USERS)
 async def settings_panel(_, message: Message):
     if not await has_permission(message.chat.id, message.from_user.id): 
-        return await message.reply("هذا الامر مخصص للمشرفين فقط.")
-    await message.reply_text(f"اعدادات الحماية لمجموعة: {message.chat.title}", reply_markup=await get_settings_kb(message.chat.id))
+        return await message.reply("هذا الأمر مخصص للمشرفين فقط.")
+    await message.reply_text(
+        f"**لوحة تحكم الحماية الشاملة:**\nالمجموعة: {message.chat.title}\n\nاختر العنصر لتخصيص العقوبة (طرد، حظر، كتم) والتحذيرات:", 
+        reply_markup=await get_main_panel(message.chat.id)
+    )
 
 # ==========================================
-# معالج التفاعلات (Callback Handler)
+# معالج التفاعلات (Callback Handler - State Machine)
 # ==========================================
 
-@app.on_callback_query(filters.regex("^(trg_|u_|close_sec|total_destruction)"))
+@app.on_callback_query(filters.regex(r"^(sec_|close_sec|ignore_cb)"))
 async def security_callback_handler(_, cb: CallbackQuery):
+    if cb.data == "ignore_cb": return await cb.answer()
+    
     if not await has_permission(cb.message.chat.id, cb.from_user.id): 
-        return await cb.answer("هذا الامر مخصص للمشرفين فقط.", show_alert=True)
+        return await cb.answer("هذا الأمر مخصص للمشرفين فقط.", show_alert=True)
         
-    if cb.data == "close_sec": 
+    data = cb.data
+    chat_id = cb.message.chat.id
+
+    if data == "close_sec": 
         return await cb.message.delete()
         
-    if cb.data == "total_destruction":  
-        await cb.answer("جاري النسف...", show_alert=True)  
-        deleted = await force_delete(cb.message.chat.id, cb.message.id, 500)  
-        await app.send_message(cb.message.chat.id, f"تم تدمير {deleted} رسالة بنجاح.")  
-        await cb.message.delete()
+    elif data == "sec_back_main":
+        await cb.message.edit_text("**لوحة تحكم الحماية الشاملة:**", reply_markup=await get_main_panel(chat_id))
 
-    elif cb.data.startswith("trg_"):  
-        key = cb.data.replace("trg_", "")
-        locks = await get_locks(cb.message.chat.id)
-        is_locked = key in locks
-        await update_lock(cb.message.chat.id, key, not is_locked)
-        await cb.message.edit_reply_markup(reply_markup=await get_settings_kb(cb.message.chat.id))
+    # 1. فتح خيارات القفل لعنصر معين
+    elif data.startswith("sec_cfg_"):
+        key = data.split("_")[2]
+        await cb.message.edit_text(f"إعدادات عقوبة ↫ **{PRETTY_MAP.get(key, key)}**\nاختر نوع العقوبة:", reply_markup=get_action_panel(key))
 
-    elif cb.data.startswith("u_unmute_"):  
-        u_id = int(cb.data.split("_")[2])  
-        try:
-            await app.restrict_chat_member(cb.message.chat.id, u_id, ChatPermissions(can_send_messages=True))  
-            await cb.message.edit("تم فك الكتم عن المستخدم بنجاح.")
-        except: pass
+    # 2. فك القفل بالكامل
+    elif data.startswith("sec_unl_"):
+        key = data.split("_")[2]
+        await set_lock_settings(chat_id, key, None) # حذف القفل من الداتا بيز
+        await cb.answer(f"تم فتح {PRETTY_MAP.get(key, key)}", show_alert=True)
+        await cb.message.edit_reply_markup(reply_markup=await get_main_panel(chat_id))
+
+    # 3. اختيار العقوبة (بفتح التحذيرات)
+    elif data.startswith("sec_act_"):
+        _, _, key, action = data.split("_")
+        await cb.message.edit_text(f"حدد عدد التحذيرات المسموح بها قبل العقوبة لـ **{PRETTY_MAP.get(key, key)}**:", reply_markup=get_warn_panel(key, action))
+
+    # 4. اختيار التحذيرات (إذا كتم -> وقت، وإذا غيره -> حفظ)
+    elif data.startswith("sec_wrn_"):
+        _, _, key, action, warns = data.split("_")
+        if action == "m": # كتم
+            await cb.message.edit_text("حدد مدة الكتم:", reply_markup=get_time_panel(key, action, warns, 1))
+        else:
+            # حظر أو طرد (يتم الحفظ فوراً بدون وقت)
+            settings = {"action": action, "warns": int(warns), "time": 0}
+            await set_lock_settings(chat_id, key, settings)
+            await cb.answer("تم حفظ الإعدادات بنجاح!", show_alert=True)
+            await cb.message.edit_text("**لوحة تحكم الحماية الشاملة:**", reply_markup=await get_main_panel(chat_id))
+
+    # 5. تعديل وقت الكتم
+    elif data.startswith("sec_tim_"):
+        _, _, key, action, warns, hours = data.split("_")
+        await cb.message.edit_reply_markup(reply_markup=get_time_panel(key, action, warns, int(hours)))
+
+    # 6. الحفظ النهائي (للكتم)
+    elif data.startswith("sec_sav_"):
+        _, _, key, action, warns, hours = data.split("_")
+        settings = {"action": action, "warns": int(warns), "time": int(hours)}
+        await set_lock_settings(chat_id, key, settings)
+        await cb.answer("تم حفظ إعدادات الكتم بنجاح!", show_alert=True)
+        await cb.message.edit_text("**لوحة تحكم الحماية الشاملة:**", reply_markup=await get_main_panel(chat_id))
+
+@app.on_callback_query(filters.regex(r"^u_unmute_"))
+async def unmute_inline_callback(_, cb: CallbackQuery):
+    if not await has_permission(cb.message.chat.id, cb.from_user.id): 
+        return await cb.answer("هذا الأمر مخصص للمشرفين فقط.", show_alert=True)
+    u_id = int(cb.data.split("_")[2])  
+    try:
+        await app.restrict_chat_member(cb.message.chat.id, u_id, ChatPermissions(can_send_messages=True))  
+        await cb.message.edit("تم فك الكتم عن المستخدم بنجاح.")
+    except: 
+        await cb.answer("حدث خطأ أثناء فك الكتم.", show_alert=True)
