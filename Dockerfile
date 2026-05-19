@@ -14,9 +14,10 @@ ENV DEBIAN_FRONTEND=noninteractive \
 
 WORKDIR /app
 
+# 🚀 تمت إضافة gdb هنا
 RUN apt-get update --fix-missing && \
     apt-get install -y --no-install-recommends \
-    build-essential cmake git curl wget unzip \
+    build-essential cmake git curl wget unzip gdb \
     ffmpeg aria2 libffi-dev libxml2-dev libxslt-dev zlib1g-dev libssl-dev \
     && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
     && apt-get install -y nodejs \
@@ -46,6 +47,5 @@ COPY . .
 # 🚀 كشف الملف اللي بيخفي الخطأ الحقيقي وإجباره على طباعة مكان الخطأ بالظبط
 RUN find . -type f -name "*.py" -exec sed -i 's/Fatal Error Occurred/Fatal Error Occurred\\n" + __import__("traceback").format_exc() + "/g' {} + || true
 
-# 🚀 أمر التشغيل الذكي: هيشغل البوت، ولو البوت عمل كراش السيرفر مش هيقفل
-# هيفضل شغال عشان تدخل تشوف الخطأ براحتك
-CMD ["sh", "-c", "python3 -m AnnieXMedia ; echo '\n\n🚨 البوت توقف عن العمل! السيرفر لن يغلق لتمكينك من فحص الأخطاء... 🚨\n\n' ; tail -f /dev/null"]
+# 🚀 أمر التشغيل الآلي عبر GDB لاصطياد خطأ الـ C++ مع إبقاء السيرفر حياً
+CMD ["sh", "-c", "gdb -q -batch -ex 'set confirm off' -ex 'set pagination off' -ex 'handle SIGPIPE pass nostop noprint' -ex 'handle SIGINT pass nostop noprint' -ex 'run' -ex 'bt' -ex 'quit' --args python3 -m AnnieXMedia ; echo '\n\n🚨 البوت توقف عن العمل! سجل GDB مطبوع بالأعلى. السيرفر لن يغلق لتمكينك من نسخ الأخطاء... 🚨\n\n' ; tail -f /dev/null"]
