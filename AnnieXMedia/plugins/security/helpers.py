@@ -8,14 +8,12 @@ import cv2
 from pyrogram.enums import ChatMemberStatus
 from AnnieXMedia import app
 from AnnieXMedia.misc import SUDOERS
-
-# استدعاء مكتبة الذكاء الاصطناعي الحديثة
 from nudenet import NudeDetector
 
-# تهيئة المحرك (سيقوم بتحميل الموديل من مصادره الموثوقة تلقائياً في أول تشغيل فقط)
+# تهيئة المحرك (يقوم بتحميل الموديل تلقائياً في الخلفية بدون مشاكل مسارات)
 detector = NudeDetector()
 
-# الأجزاء التي يعتبرها البوت إباحية صريحة (تمنع الحذف الخاطئ للصور العادية)
+# الأجزاء المحظورة (تمنع الحذف الخاطئ)
 UNSAFE_LABELS = [
     "EXPOSED_GENITALIA",
     "EXPOSED_ANUS",
@@ -38,14 +36,10 @@ async def has_permission(chat_id: int, user_id: int):
 def _run_local_scan(image_path: str) -> bool:
     """معالجة وفحص الصورة محلياً باستخدام NudeNet"""
     try:
-        # المكتبة تقوم بضبط الأبعاد والفحص واستخراج النتائج تلقائياً
         detections = detector.detect(image_path)
-        
         for detection in detections:
-            # إذا وجدت المكتبة أي جزء محظور بنسبة تأكد أعلى من 65%، تعتبر الصورة إباحية
             if detection['class'] in UNSAFE_LABELS and detection['score'] > 0.65:
                 return True
-                
         return False
     except Exception as e:
         print(f"Local Scan Error: {e}")
@@ -63,7 +57,6 @@ async def scan_video_frames(video_path: str):
         total_frames = int(cam.get(cv2.CAP_PROP_FRAME_COUNT))
         
         if total_frames > 0:
-            # فحص ثلاث لقطات مختلفة من الفيديو
             check_points = [0.1, 0.5, 0.9]
             for point in check_points:
                 frame_id = int(total_frames * point)
