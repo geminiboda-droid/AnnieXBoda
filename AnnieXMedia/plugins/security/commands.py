@@ -13,9 +13,12 @@ from AnnieXMedia import app
 from AnnieXMedia.misc import SUDOERS
 from config import BANNED_USERS
 from .database import (
-    update_lock, get_locks, set_warn_limit_db, 
-    update_user_warns, get_lock_settings, set_lock_settings # تم اضافة دوال جديدة لقاعدة البيانات
+    get_lock_settings, 
+    set_lock_settings, 
+    set_warn_limit_db, 
+    update_user_warns
 )
+ # تم اضافة دوال جديدة لقاعدة البيانات
 from .helpers import has_permission, force_delete
 
 # --- خرائط البيانات والترجمة ---
