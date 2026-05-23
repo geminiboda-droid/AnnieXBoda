@@ -34,7 +34,7 @@ arabic-reshaper
 python-bidi
 
 # ===== Telegram / Calls =====
-ntgcalls
+ntgcalls==2.2.1b3
 kurigram~=2.2.21
 pyromod
 
