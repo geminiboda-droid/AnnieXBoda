@@ -2,22 +2,20 @@ FROM python:3.13
 
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
 
-# 🚀 تفعيل وضع الديباج عشان بايثون يفضح أي خطأ صامت
+# 🚀 بيئة إنتاج نظيفة وسريعة (بدون وضع الديباج البطيء)
 ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PYTHONFAULTHANDLER=1 \
-    PYTHONASYNCIODEBUG=1 \
     UV_SYSTEM_PYTHON=1 \
     DENO_INSTALL="/root/.deno" \
     PATH="/root/.deno/bin:/usr/local/bin:/usr/bin:${PATH}"
 
 WORKDIR /app
 
-# 🚀 تمت إضافة gdb هنا
+# 🚀 إزالة GDB لتخفيف الحجم والاعتماد على الحزم الأساسية فقط
 RUN apt-get update --fix-missing && \
     apt-get install -y --no-install-recommends \
-    build-essential cmake git curl wget unzip gdb \
+    build-essential cmake git curl wget unzip \
     ffmpeg aria2 libffi-dev libxml2-dev libxslt-dev zlib1g-dev libssl-dev \
     && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
     && apt-get install -y nodejs \
@@ -40,12 +38,10 @@ RUN uv pip install --no-cache \
 RUN mkdir -p /etc/yt-dlp && \
     echo "--remote-components ejs:github" > /etc/yt-dlp.conf
 
+# 🚀 التخزين المؤقت لـ yt-dlp
 RUN yt-dlp "ytsearch1:test" --dump-json > /dev/null 2>&1 || true
 
 COPY . .
 
-# 🚀 كشف الملف اللي بيخفي الخطأ الحقيقي وإجباره على طباعة مكان الخطأ بالظبط
-RUN find . -type f -name "*.py" -exec sed -i 's/Fatal Error Occurred/Fatal Error Occurred\\n" + __import__("traceback").format_exc() + "/g' {} + || true
-
-# 🚀 أمر التشغيل الآلي عبر GDB لاصطياد خطأ الـ C++ مع إبقاء السيرفر حياً
-CMD ["sh", "-c", "gdb -q -batch -ex 'set confirm off' -ex 'set pagination off' -ex 'handle SIGPIPE pass nostop noprint' -ex 'handle SIGINT pass nostop noprint' -ex 'run' -ex 'bt' -ex 'quit' --args python3 -m AnnieXMedia ; echo '\n\n🚨 البوت توقف عن العمل! سجل GDB مطبوع بالأعلى. السيرفر لن يغلق لتمكينك من نسخ الأخطاء... 🚨\n\n' ; tail -f /dev/null"]
+# 🚀 التشغيل المباشر والصاروخي للبوت
+CMD ["python3", "-m", "AnnieXMedia"]
