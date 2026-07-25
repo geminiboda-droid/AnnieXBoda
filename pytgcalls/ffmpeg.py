@@ -4,11 +4,13 @@ import os.path
 import re
 import shlex
 import subprocess
-from typing import Dict, List, Optional, Union
+from json import JSONDecodeError
+from json import loads
+from typing import Dict
+from typing import List
+from typing import Optional
+from typing import Union
 
-# 🚀 المكتبات السريعة التي تم إضافتها لتسريع الأداء
-import orjson
-from cachetools import TTLCache
 from ntgcalls import FFmpegError
 
 from .exceptions import ImageSourceFound
@@ -18,10 +20,6 @@ from .exceptions import NoAudioSourceFound
 from .exceptions import NoVideoSourceFound
 from .types.raw import AudioParameters
 from .types.raw import VideoParameters
-
-# 🚀 إعداد كاش ذكي يحفظ 100 عملية لمدة ساعة (3600 ثانية) لحماية الرام وتوفير المعالج
-_COMMANDS_CACHE = TTLCache(maxsize=100, ttl=3600)
-_SUPPORTED_REGEX = re.compile(r'(?m)^ *(-\w+).*?\s+')
 
 
 async def check_stream(
@@ -55,17 +53,12 @@ async def check_stream(
             ffprobe.communicate(),
             timeout=20,
         )
-        # 🚀 استخدام orjson السريعة جداً وقراءة stdout مباشرة كـ bytes
-        result = orjson.loads(stdout) or {}
-        
+        result = loads(stdout.decode('utf-8')) or {}
         stream_list = result.get('streams', [])
         format_content = result.get('format', [])
-        
-        # فحص البايتات أسرع من فحص النصوص (bytes checking)
-        if b'No such file' in stderr:
+        if 'No such file' in stderr.decode('utf-8'):
             raise FileNotFoundError()
-            
-    except (subprocess.TimeoutExpired, orjson.JSONDecodeError):
+    except (subprocess.TimeoutExpired, JSONDecodeError):
         ffprobe.kill()
         raise
 
@@ -109,10 +102,8 @@ async def check_stream(
             new_h = stream_parameters.height
             new_w = int(new_h * ratio)
 
-        # 🚀 استخدام العمليات الثنائية (Bitwise) لتسريع تحويل الأرقام الفردية إلى زوجية
-        new_w &= ~1
-        new_h &= ~1
-        
+        new_w = new_w - 1 if new_w % 2 else new_w
+        new_h = new_h - 1 if new_h % 2 else new_h
         stream_parameters.height = new_h
         stream_parameters.width = new_w
         if is_image:
@@ -131,52 +122,44 @@ async def cleanup_commands(
     process_name: Optional[str] = None,
     blacklist: Optional[List[str]] = None,
 ) -> List[str]:
-    target_process = process_name if process_name else commands[0]
-    
-    # 🚀 استدعاء الأوامر من الكاش الذكي لتوفير معالجة الـ subprocess
-    if target_process not in _COMMANDS_CACHE:
+    try:
+        proc_res = await asyncio.create_subprocess_exec(
+            commands[0] if not process_name else process_name,
+            '-h',
+            'full',
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
         try:
-            proc_res = await asyncio.create_subprocess_exec(
-                target_process,
-                '-h',
-                'full',
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
+            stdout, _ = await asyncio.wait_for(
+                proc_res.communicate(),
+                timeout=20,
             )
-            try:
-                stdout, _ = await asyncio.wait_for(
-                    proc_res.communicate(),
-                    timeout=20,
-                )
-                result = stdout.decode('utf-8')
-            except subprocess.TimeoutExpired:
-                proc_res.kill()
-                raise
-                
-            supported = _SUPPORTED_REGEX.findall(result)
-            supported += ['-i']
-            _COMMANDS_CACHE[target_process] = supported
-            
-        except FileNotFoundError:
-            raise FFmpegError(f'{target_process} not installed')
+            result = stdout.decode('utf-8')
+        except (subprocess.TimeoutExpired, JSONDecodeError):
+            proc_res.kill()
+            raise
+        supported = re.findall(r'(?m)^ *(-\w+).*?\s+', result)
+        supported += ['-i']
+        new_commands = []
+        ignore_next = False
 
-    supported = _COMMANDS_CACHE[target_process]
-    
-    new_commands = []
-    ignore_next = False
+        def is_flag(arg: str) -> bool:
+            return arg[0] == '-' and not arg[1:].replace('.', '', 1).isdigit()
 
-    for v in commands:
-        if len(v) > 0:
-            if v[0] == '-':
-                ignore_next = v not in supported or \
-                    (blacklist is not None and v in blacklist)
+        for v in commands:
+            if len(v) > 0:
+                if is_flag(v):
+                    ignore_next = v not in supported or \
+                        blacklist is not None and v in blacklist
 
-            if not ignore_next:
-                new_commands.append(v)
-            elif v[0] != '-':
-                ignore_next = False
-                
-    return new_commands
+                if not ignore_next:
+                    new_commands += [v]
+                elif not is_flag(v):
+                    ignore_next = False
+        return new_commands
+    except FileNotFoundError:
+        raise FFmpegError(f'{commands[0]} not installed')
 
 
 def build_command(
