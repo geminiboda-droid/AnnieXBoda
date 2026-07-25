@@ -1,11 +1,3 @@
-# Fixed: Added missing PyTgCallsError class to prevent ImportError
-
-class PyTgCallsError(Exception):
-    """Base exception for all PyTgCalls errors."""
-    def __init__(self, message: str = None):
-        super().__init__(message or 'An unknown error occurred')
-
-
 class TooOldPyrogramVersion(Exception):
     def __init__(
             self,
@@ -29,19 +21,6 @@ class TooOldTelethonVersion(Exception):
             f'Needed telethon {version_needed}+, '
             'actually installed is '
             f'{telethon_version}',
-        )
-
-
-class TooOldHydrogramVersion(Exception):
-    def __init__(
-            self,
-            version_needed: str,
-            hydrogram_version: str,
-    ):
-        super().__init__(
-            f'Needed hydrogram {version_needed}+, '
-            'actually installed is '
-            f'{hydrogram_version}',
         )
 
 
